@@ -1,0 +1,38 @@
+# Build artifacts
+bin/
+test-output/
+.dev-go-source/
+instrumented/
+
+# Example app artifacts (both dev and docker)
+examples/app/example-app
+examples/app/*.log
+# Templating go.mod for example app
+examples/app/go.mod
+
+
+# Go build artifacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+vendor/
+
+# Go workspace file
+go.work
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+
+# Debug files
+__debug_bin
+__debug_bin.*

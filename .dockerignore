@@ -1,0 +1,28 @@
+# Build artifacts
+.dev-go-source/
+instrumented/
+bin/
+examples/
+*.log
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Documentation
+*.md
+!README.md
+
+# Test files
+examples/
+test/
