@@ -29,7 +29,6 @@ RUN /bin/instrumenter \
     -output /instrumented && \
     cp /instrumented/reflect/value.go /go-source/src/reflect/value.go
 
-# Stage 2: Build the INSTRUMENTED Go toolchain (use original version as bootstrap)
 FROM golang:${BUILDER_GO_VERSION} AS builder
 
 COPY --from=instrumenter /go-source /go-source
@@ -38,8 +37,9 @@ WORKDIR /go-source/src
 ENV GOROOT_BOOTSTRAP=/usr/local/go
 RUN ./make.bash
 
-# Stage 3: Runtime image
 FROM debian:bullseye-slim
+
+RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
 
 ARG GO_VERSION
 LABEL org.opencontainers.image.version="${GO_VERSION}"
