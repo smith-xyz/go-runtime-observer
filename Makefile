@@ -1,18 +1,50 @@
-.PHONY: all build-instrumenter dev-setup dev-instrument dev-build-go dev-run dev-shell docker-build dev-docker-run dev-docker-shell docker-clean clean clean-all help
+.PHONY: all help clean clean-all \
+	dev-setup dev-local-instrument dev-local-build dev-local-test \
+	dev-clean-install-instrumented-go dev-update-example-gomod \
+	docker-build dev-docker-run dev-docker-shell docker-clean \
+	vendor-deps
 
-# Auto-detect Go version from system, or override with GO_VERSION=x.y.z
 GO_VERSION ?= 1.23.0
 GO_SRC_DIR := .dev-go-source/$(GO_VERSION)
+BUILD_CMD  := $(GO_SRC_DIR)/go/bin/go build -C examples/app -a -o $(PWD)/examples/app/example-app .
+DOCKER_ENV := -e GO_INSTRUMENT_UNSAFE=false -e GO_INSTRUMENT_REFLECT=true
 
-all: build-instrumenter
+all: docker-build
 
-# Build the instrumenter tool
-build-instrumenter:
-	@echo "Building instrumenter..."
-	@go build -o bin/instrumenter ./instrumenter
-	@echo "✓ Built bin/instrumenter"
+##@ Help
 
-# Download Go source if needed
+help:
+	@echo "Go Runtime Observer - Development Workflow"
+	@echo ""
+	@echo "Current Go version: $(GO_VERSION)"
+	@echo ""
+	@echo "Local Development:"
+	@echo "  make dev-setup                       Download Go source if needed"
+	@echo "  make dev-local-instrument            Copy instrumentation to local Go source"
+	@echo "  make dev-local-build                 Build instrumented Go locally"
+	@echo "  make dev-local-test                  Test with local instrumented Go"
+	@echo "  make dev-clean-install-instrumented-go  Clean install: setup + instrument + build"
+	@echo ""
+	@echo "Docker Workflow:"
+	@echo "  make docker-build                    Build instrumented Go container image"
+	@echo "  make dev-docker-run                  Build and run example with Docker"
+	@echo "  make dev-docker-shell                Interactive shell with Docker"
+	@echo ""
+	@echo "Utilities:"
+	@echo "  make vendor-deps                     Vendor dependencies for example app"
+	@echo "  make dev-update-example-gomod        Update example app go.mod version"
+	@echo ""
+	@echo "Cleanup:"
+	@echo "  make clean                           Remove build artifacts"
+	@echo "  make clean-all                       Remove build artifacts + Go source"
+	@echo "  make docker-clean                    Remove Docker artifacts and images"
+	@echo ""
+	@echo "Examples (override Go version):"
+	@echo "  make dev-local-build GO_VERSION=1.23.1"
+	@echo "  make docker-build GO_VERSION=1.24.0"
+
+##@ Local Development
+
 dev-setup:
 	@mkdir -p $(GO_SRC_DIR)
 	@if [ ! -d "$(GO_SRC_DIR)/go" ]; then \
@@ -26,84 +58,57 @@ dev-setup:
 		echo "✓ Go source already exists"; \
 	fi
 
-# Run instrumenter to see instrumented artifacts
-dev-instrument: build-instrumenter dev-setup
-	@echo "Running instrumenter..."
-	@rm -rf instrumented
-	@./bin/instrumenter -src $(GO_SRC_DIR)/go -output instrumented
-	@echo "  -> Copying runtime/ → instrumented/runtime/"
-	@mkdir -p instrumented
-	@cp -r runtime instrumented/
-	@echo "✓ Instrumentation complete"
+dev-local-instrument:
+	@echo "Copying instrumentation to local Go source..."
+	@./scripts/install-instrumentation-to-go.sh $(GO_SRC_DIR)/go $(GO_VERSION)
+	@echo "✓ Instrumentation copied to Go source"
 
-# Build instrumented Go toolchain locally (~5 min)
-dev-build-go: build-instrumenter dev-setup dev-instrument
-	@echo "Building instrumented Go toolchain..."
-	@echo "  -> Copying instrumentation to Go..."
-	@cp -r instrumented/* $(GO_SRC_DIR)/go/src/
-	@echo "  -> Building Go (this takes ~5 minutes)..."
-	@cd $(GO_SRC_DIR)/go/src && GOROOT_BOOTSTRAP=$$(go env GOROOT) ./make.bash > /dev/null 2>&1
-	@echo "✓ Instrumented Go built at $(GO_SRC_DIR)/go/bin/go"
+dev-local-build:
+	@echo "Building instrumented Go $(GO_VERSION) locally..."
+	@cd $(GO_SRC_DIR)/go/src && \
+		unset GO_INSTRUMENT_UNSAFE GO_INSTRUMENT_REFLECT && \
+		GOROOT_BOOTSTRAP=$$(go env GOROOT) && \
+		./make.bash
+	@echo "✓ Instrumented Go built locally"
 
-# Update example app go.mod to match current GO_VERSION
-dev-update-example-gomod:
-	@echo "Updating examples/app/go.mod to go $(GO_VERSION)..."
-	@if [ ! -f examples/app/go.mod ]; then \
-		echo "Generating examples/app/go.mod from template..."; \
-	fi
-	@sed 's/{{GO_VERSION}}/$(GO_VERSION)/' examples/app/go.mod.template > examples/app/go.mod
-	@echo "✓ Updated go.mod"
-
-# Run example with instrumented Go
-dev-run: dev-update-example-gomod
-	@echo "Building example with instrumented Go..."
+dev-local-test: clean vendor-deps
+	@echo "Testing with local instrumented Go $(GO_VERSION)..."
 	@rm -f examples/app/example-app examples/app/*.log
-	@GOROOT=$(PWD)/$(GO_SRC_DIR)/go \
-	PATH=$(PWD)/$(GO_SRC_DIR)/go/bin:$$PATH \
-	GOTOOLCHAIN=local \
-	$(GO_SRC_DIR)/go/bin/go build -C examples/app -a -o $(PWD)/examples/app/example-app .
-	@echo "Running example..."
-	@INSTRUMENTATION_LOG_PATH=$(PWD)/examples/app/instrumentation.log ./examples/app/example-app
+	@echo "Building example app..."
+	@GOROOT="$(CURDIR)/$(GO_SRC_DIR)/go" \
+		PATH="$(CURDIR)/$(GO_SRC_DIR)/go/bin:$$PATH" \
+		GOTOOLCHAIN=local \
+		GO_INSTRUMENT_UNSAFE=true \
+		GO_INSTRUMENT_REFLECT=true \
+		$(BUILD_CMD)
+	@echo "Running example app..."
+	@INSTRUMENTATION_LOG_PATH=$(PWD)/examples/app/local-instrumentation.log ./examples/app/example-app
+	@echo ""
+	@echo "Instrumentation log:"
+	@cat examples/app/local-instrumentation.log
+	@echo ""
+	@echo "✓ Local test complete"
 
-# Drop into a shell with instrumented Go configured
-dev-shell:
-	@echo "Starting shell with instrumented Go..."
-	@echo "GOROOT: $(PWD)/$(GO_SRC_DIR)/go"
-	@echo "Usage: go build -a -o myapp /path/to/your/app.go"
-	@echo "       INSTRUMENTATION_LOG_PATH=./myapp.log ./myapp"
-	@GOROOT=$(PWD)/$(GO_SRC_DIR)/go \
-	PATH=$(PWD)/$(GO_SRC_DIR)/go/bin:$$PATH \
-	GOTOOLCHAIN=local \
-	bash
+dev-clean-install-instrumented-go: clean-all dev-setup dev-local-instrument dev-local-build
 
-# Clean build artifacts
-clean:
-	@echo "Cleaning build artifacts..."
-	@rm -rf bin/ instrumented/ examples/app/*.log examples/app/example-app
-	@echo "✓ Clean"
+##@ Docker Workflow
 
-# Clean everything including downloaded Go source
-clean-all: clean
-	@echo "Removing Go source..."
-	@rm -rf $(GO_SRC_DIR)/
-	@echo "✓ Clean all"
-
-# Build instrumented Go container image
 docker-build:
 	@echo "Building instrumented Go $(GO_VERSION) container..."
-	@bash ./scripts/docker-build-instrumented-go.sh $(GO_VERSION)
-	
-# Build and run example app with Docker
+	@bash ./scripts/docker-install-instrumented-go.sh $(GO_VERSION)
+
 dev-docker-run: docker-build dev-update-example-gomod
 	@echo "Building example app with Docker..."
 	@rm -f examples/app/example-app examples/app/docker-instrumentation.log
 	@docker run --rm \
 		-v $(PWD)/examples/app:/work \
+		$(DOCKER_ENV) \
 		instrumented-go:$(GO_VERSION) \
 		build -o example-app .
 	@echo "Running example app..."
 	@docker run --rm \
 		-v $(PWD)/examples/app:/work \
+		$(DOCKER_ENV) \
 		-e INSTRUMENTATION_LOG_PATH=/work/docker-instrumentation.log \
 		--entrypoint /work/example-app \
 		instrumented-go:$(GO_VERSION)
@@ -113,7 +118,6 @@ dev-docker-run: docker-build dev-update-example-gomod
 	@echo ""
 	@echo "✓ Docker run complete"
 
-# Interactive shell with instrumented Go via Docker
 dev-docker-shell: docker-build
 	@echo "Starting Docker shell with instrumented Go $(GO_VERSION)..."
 	@echo ""
@@ -129,35 +133,32 @@ dev-docker-shell: docker-build
 		--entrypoint /bin/bash \
 		instrumented-go:$(GO_VERSION)
 
-# Clean Docker-specific artifacts
+##@ Utilities
+
+vendor-deps:
+	@echo "Vendoring dependencies for example app..."
+	@cd examples/app && go mod vendor
+
+dev-update-example-gomod:
+	@echo "Updating example app go.mod to Go $(GO_VERSION)..."
+	@sed -i.bak "s/go [0-9]\+\.[0-9]\+\.[0-9]\+/go $(GO_VERSION)/" examples/app/go.mod
+	@rm -f examples/app/go.mod.bak
+	@echo "✓ Updated examples/app/go.mod to Go $(GO_VERSION)"
+
+##@ Cleanup
+
+clean:
+	@echo "Cleaning build artifacts..."
+	@rm -rf bin/ examples/app/*.log examples/app/example-app examples/app/vendor
+	@echo "✓ Clean"
+
+clean-all: clean
+	@echo "Removing Go source..."
+	@rm -rf $(GO_SRC_DIR)/
+	@echo "✓ Clean all"
+
 docker-clean:
 	@echo "Cleaning Docker artifacts..."
 	@rm -f examples/app/example-app examples/app/docker-instrumentation.log
 	@docker rmi instrumented-go:$(GO_VERSION) 2>/dev/null || true
 	@echo "✓ Docker clean"
-
-help:
-	@echo "Go Runtime Observer"
-	@echo ""
-	@echo "Current Go version: $(GO_VERSION)"
-	@echo ""
-	@echo "Local Development:"
-	@echo "  make build-instrumenter    Build the AST instrumenter tool"
-	@echo "  make dev-instrument        Generate instrumented artifacts"
-	@echo "  make dev-build-go          Build instrumented Go (~5 min)"
-	@echo "  make dev-run               Run example with local instrumented Go"
-	@echo "  make dev-shell             Interactive shell with local instrumented Go"
-	@echo ""
-	@echo "Docker Workflow (Recommended for CI/Testing):"
-	@echo "  make docker-build          Build instrumented Go container image"
-	@echo "  make dev-docker-run        Build and run example with Docker"
-	@echo "  make dev-docker-shell      Interactive shell with Docker"
-	@echo ""
-	@echo "Cleanup:"
-	@echo "  make clean                 Remove build artifacts"
-	@echo "  make docker-clean          Remove Docker artifacts and images"
-	@echo "  make clean-all             Remove everything including Go source"
-	@echo ""
-	@echo "Examples (change Go version):"
-	@echo "  make dev-run GO_VERSION=1.21.0"
-	@echo "  make dev-docker-run GO_VERSION=1.20.0"

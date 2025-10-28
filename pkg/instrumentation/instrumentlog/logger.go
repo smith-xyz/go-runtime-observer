@@ -6,9 +6,7 @@ import (
 	"sync"
 )
 
-var (
-	logPathEnv = "INSTRUMENTATION_LOG_PATH"
-)
+const LOG_ENV_VAR = "INSTRUMENTATION_LOG_PATH"
 
 var (
 	logFile *os.File
@@ -17,7 +15,7 @@ var (
 )
 
 func init() {
-	path := os.Getenv(logPathEnv)
+	path := os.Getenv(LOG_ENV_VAR)
 	if path != "" {
 		logFile, _ = os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	}

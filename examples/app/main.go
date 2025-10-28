@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"unsafe"
 
 	"gopkg.in/yaml.v3"
 )
@@ -52,7 +53,7 @@ func main() {
 	data, _ := json.Marshal(people)
 
 	var decoded []Person
-	json.Unmarshal(data, &decoded)
+	_ = json.Unmarshal(data, &decoded)
 
 	yamlConfig := `
 apiVersion: v1
@@ -71,11 +72,17 @@ spec:
 `
 
 	var config KubeConfig
-	yaml.Unmarshal([]byte(yamlConfig), &config)
+	_ = yaml.Unmarshal([]byte(yamlConfig), &config)
 
 	val := reflect.ValueOf(&config)
 	method := val.MethodByName("Validate")
 	if method.IsValid() {
 		method.Call([]reflect.Value{})
 	}
+
+	a := [16]int{3: 3, 9: 9, 11: 11}
+	eleSize := int(unsafe.Sizeof(a[0]))
+	p9 := &a[9]
+	up9 := unsafe.Pointer(p9)
+	_ = (*int)(unsafe.Add(up9, -6*eleSize))
 }

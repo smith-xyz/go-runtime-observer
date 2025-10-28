@@ -2,6 +2,8 @@
 bin/
 test-output/
 .dev-go-source/
+.dev-mod-cache/
+.dev-build-cache/
 instrumented/
 
 # Example app artifacts (both dev and docker)

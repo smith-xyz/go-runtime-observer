@@ -13,27 +13,29 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /instrumenter
-COPY instrumenter/ ./instrumenter/
+
+COPY pkg/instrumentation/ ./pkg/instrumentation/
+COPY pkg/preprocessor/ ./pkg/preprocessor/
+COPY cmd/install-instrumentation/ ./cmd/install-instrumentation/
 COPY go.mod go.sum ./
 
-RUN go build -o /bin/instrumenter ./instrumenter
+RUN go build -o /bin/install-instrumentation ./cmd/install-instrumentation
 
 RUN wget https://go.dev/dl/go${GO_VERSION}.src.tar.gz && \
     tar -xzf go${GO_VERSION}.src.tar.gz && \
     mv go /go-source
 
-COPY runtime/instrumentlog /go-source/src/runtime/instrumentlog
-
-RUN /bin/instrumenter \
-    -src /go-source \
-    -output /instrumented && \
-    cp /instrumented/reflect/value.go /go-source/src/reflect/value.go
+# Instrumentation installation
+COPY scripts/install-instrumentation-to-go.sh ./install-instrumentation-to-go.sh
+RUN chmod +x ./install-instrumentation-to-go.sh && \
+    ./install-instrumentation-to-go.sh /go-source ${GO_VERSION}
 
 FROM golang:${BUILDER_GO_VERSION} AS builder
 
 COPY --from=instrumenter /go-source /go-source
 
 WORKDIR /go-source/src
+RUN unset GO_INSTRUMENT_UNSAFE GO_INSTRUMENT_REFLECT
 ENV GOROOT_BOOTSTRAP=/usr/local/go
 RUN ./make.bash
 
