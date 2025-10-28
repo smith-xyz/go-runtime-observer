@@ -11,6 +11,7 @@ const (
 )
 
 var AllowedReparseFunctions = []string{
+	"cfg.BuildContext.ImportDir",
 	"buildContext.ImportDir",
 	"ctxt.ImportDir",
 }

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/smith-xyz/go-runtime-observer/cmd/install-instrumentation/internal/versions/config"
+	"github.com/smith-xyz/go-runtime-observer/cmd/install-instrumentation/internal/versions/v1_19"
 	"github.com/smith-xyz/go-runtime-observer/cmd/install-instrumentation/internal/versions/v1_23"
 )
 
@@ -16,6 +17,7 @@ import (
 //  2. Import the package here
 //  3. Add the version to this map
 var SupportedVersions = map[string]config.VersionConfig{
+	"1.19": v1_19.GetConfig(),
 	"1.23.0": v1_23.GetConfig(),
 }
 

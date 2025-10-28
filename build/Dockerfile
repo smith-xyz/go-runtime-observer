@@ -39,9 +39,7 @@ RUN unset GO_INSTRUMENT_UNSAFE GO_INSTRUMENT_REFLECT
 ENV GOROOT_BOOTSTRAP=/usr/local/go
 RUN ./make.bash
 
-FROM debian:bullseye-slim
-
-RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
+FROM registry.access.redhat.com/ubi9/ubi-minimal
 
 ARG GO_VERSION
 LABEL org.opencontainers.image.version="${GO_VERSION}"

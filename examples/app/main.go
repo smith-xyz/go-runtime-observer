@@ -41,7 +41,7 @@ func (k *KubeConfig) Validate() error {
 }
 
 func main() {
-	for i := range 5 {
+	for i := 0; i < 5; i++ {
 		reflect.ValueOf(fmt.Sprintf("hello-%d", i))
 	}
 

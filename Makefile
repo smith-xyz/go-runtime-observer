@@ -34,6 +34,9 @@ help:
 	@echo "  make vendor-deps                     Vendor dependencies for example app"
 	@echo "  make dev-update-example-gomod        Update example app go.mod version"
 	@echo ""
+	@echo "Installation Testing:"
+	@echo "  make test-installation-compatibility   Tests installation and compatibility of instrumentation"
+	@echo ""
 	@echo "Cleanup:"
 	@echo "  make clean                           Remove build artifacts"
 	@echo "  make clean-all                       Remove build artifacts + Go source"
@@ -97,7 +100,7 @@ docker-build:
 	@echo "Building instrumented Go $(GO_VERSION) container..."
 	@bash ./scripts/docker-install-instrumented-go.sh $(GO_VERSION)
 
-dev-docker-run: docker-build dev-update-example-gomod
+dev-docker-run: docker-build dev-update-example-gomod vendor-deps
 	@echo "Building example app with Docker..."
 	@rm -f examples/app/example-app examples/app/docker-instrumentation.log
 	@docker run --rm \
@@ -135,15 +138,20 @@ dev-docker-shell: docker-build
 
 ##@ Utilities
 
-vendor-deps:
+vendor-deps: dev-update-example-gomod
 	@echo "Vendoring dependencies for example app..."
 	@cd examples/app && go mod vendor
 
 dev-update-example-gomod:
 	@echo "Updating example app go.mod to Go $(GO_VERSION)..."
-	@sed -i.bak "s/go [0-9]\+\.[0-9]\+\.[0-9]\+/go $(GO_VERSION)/" examples/app/go.mod
-	@rm -f examples/app/go.mod.bak
+	@sed "s/{{GO_VERSION}}/$(GO_VERSION)/" examples/app/go.mod.template > examples/app/go.mod
 	@echo "✓ Updated examples/app/go.mod to Go $(GO_VERSION)"
+
+##@ Installation Testing
+
+test-installation-compatibility:
+	@echo "Running installation tests"
+	@./scripts/test-installation-compatibility.sh
 
 ##@ Cleanup
 

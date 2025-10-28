@@ -1,7 +1,6 @@
 package preprocessor
 
 import (
-	"slices"
 	"strings"
 )
 
@@ -58,9 +57,11 @@ var DefaultRegistry = Registry{
 
 func (r *Registry) IsInstrumented(stdlibPackage, functionName string) bool {
 	if pkg, ok := r.Instrumentation[stdlibPackage]; ok {
-		if slices.Contains(pkg.Functions, functionName) {
+		for _, fn := range pkg.Functions {
+			if fn == functionName {
 				return true
 			}
+		}
 	}
 	return false
 }
@@ -101,7 +102,13 @@ func (r *Registry) IsStdLibSafe(filePath string) bool {
 		return false
 	}
 	
-	return slices.Contains(r.SafeStdlibPackages, packageName)
+	for _, pkg := range r.SafeStdlibPackages {
+		if pkg == packageName {
+			return true
+		}
+	}
+	
+	return false
 }
 
 func (r *Registry) IsDependencyPackage(filePath string) bool {
