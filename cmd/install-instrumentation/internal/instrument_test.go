@@ -36,7 +36,7 @@ func init() {
 			{
 				Name:        "command_line",
 				TargetFile:  "test/pkg.go",
-				Line:        40,
+				Line:        38,
 				Description: "Test command-line injection",
 				Instrument: config.InstrumentCall{
 					Function: "InstrumentPackageFiles",

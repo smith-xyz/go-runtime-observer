@@ -24,6 +24,7 @@ help:
 	@echo "  make dev-local-instrument            Copy instrumentation to local Go source"
 	@echo "  make dev-local-build                 Build instrumented Go locally"
 	@echo "  make dev-local-test                  Test with local instrumented Go"
+	@echo "  make dev-clean-instrumented-go       Clean instrumentation: setup + instrument"
 	@echo "  make dev-clean-install-instrumented-go  Clean install: setup + instrument + build"
 	@echo ""
 	@echo "Docker Workflow:"
@@ -90,6 +91,10 @@ dev-local-test: clean vendor-deps
 	@echo ""
 	@echo "Instrumentation log:"
 	@cat examples/app/local-instrumentation.log
+
+dev-clean-go: clean-all dev-setup
+
+dev-clean-instrumented-go: clean-all dev-setup dev-local-instrument
 
 dev-clean-install-instrumented-go: clean-all dev-setup dev-local-instrument dev-local-build
 

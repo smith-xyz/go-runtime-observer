@@ -28,7 +28,7 @@ func GetConfig() config.VersionConfig {
 			{
 				Name:        "command_line",
 				TargetFile:  "src/cmd/go/internal/load/pkg.go",
-				Line:        3029,
+				Line:        3027,
 				Description: "Injects after ImportDir call in goFilesPackage for command-line files",
 				Instrument: config.InstrumentCall{
 					Function: "InstrumentPackageFiles",
