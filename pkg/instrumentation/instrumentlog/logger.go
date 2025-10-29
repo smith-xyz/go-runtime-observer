@@ -25,29 +25,29 @@ func LogCall(operation string, args ...string) {
 	if logFile == nil {
 		return
 	}
-	
+
 	pc, file, line, ok := runtime.Caller(2)
 	if !ok {
 		return
 	}
-	
+
 	caller := "unknown"
 	if fn := runtime.FuncForPC(pc); fn != nil {
 		caller = fn.Name()
 	}
-	
+
 	key := operation + ":" + caller + ":" + file + ":" + itoa(line)
 	for _, arg := range args {
 		key += ":" + arg
 	}
-	
+
 	mu.Lock()
 	if seen[key] {
 		mu.Unlock()
 		return
 	}
 	seen[key] = true
-	
+
 	buf := make([]byte, 0, 256)
 	buf = append(buf, "{\"operation\":\""...)
 	buf = append(buf, operation...)
@@ -57,7 +57,7 @@ func LogCall(operation string, args ...string) {
 	buf = append(buf, file...)
 	buf = append(buf, "\",\"line\":"...)
 	buf = append(buf, itoa(line)...)
-	
+
 	for i := 0; i+1 < len(args); i += 2 {
 		buf = append(buf, ",\""...)
 		buf = appendEscaped(buf, args[i])
@@ -65,9 +65,9 @@ func LogCall(operation string, args ...string) {
 		buf = appendEscaped(buf, args[i+1])
 		buf = append(buf, '"')
 	}
-	
+
 	buf = append(buf, "}\n"...)
-	
+
 	_, _ = logFile.Write(buf)
 	mu.Unlock()
 }
@@ -94,24 +94,24 @@ func itoa(i int) string {
 	if i == 0 {
 		return "0"
 	}
-	
+
 	var buf [20]byte
 	n := len(buf)
 	neg := i < 0
 	if neg {
 		i = -i
 	}
-	
+
 	for i > 0 {
 		n--
 		buf[n] = byte(i%10) + '0'
 		i /= 10
 	}
-	
+
 	if neg {
 		n--
 		buf[n] = '-'
 	}
-	
+
 	return string(buf[n:])
 }

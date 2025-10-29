@@ -158,12 +158,89 @@ Look for:
 1. `Happy:` label in dependency resolution (usually around line 900)
 2. `bp, err := ctxt.ImportDir(dir, 0)` in `goFilesPackage` (usually around line 3180)
 
+## Instrumentation Strategies
+
+This project uses **two different approaches** for instrumentation depending on the target:
+
+### Decision Matrix: AST Injection vs Wrapper
+
+| Criteria       | AST Injection                               | Wrapper Module                             |
+| -------------- | ------------------------------------------- | ------------------------------------------ |
+| **Target**     | Stdlib packages                             | User/dependency code                       |
+| **Use When**   | Need to instrument methods on stdlib types  | Can replace package imports                |
+| **Location**   | Modifies stdlib source in-place             | Writes to temp directory                   |
+| **Example**    | `reflect.Value.Call()` method               | `unsafe.Add()` function                    |
+| **Registry**   | `StdlibAST` map                             | `Instrumentation` map                      |
+| **Limitation** | Stdlib only (needs internal package access) | Can't instrument methods on existing types |
+
+### When to Use Each Approach
+
+**Use AST Injection for:**
+
+- Stdlib packages with methods to instrument (`reflect`, potentially `net/http`)
+- Functions deeply integrated with stdlib internals
+- Operations that ALL code (user + deps + stdlib) should log
+
+**Use Wrapper Modules for:**
+
+- Builtin packages (`unsafe` - can't AST inject into compiler builtins)
+- User and dependency code
+- Simple function replacements without method instrumentation
+
+### Hybrid Approach (Advanced)
+
+Some stdlib packages could theoretically use BOTH strategies:
+
+- **AST injection** for their own methods (e.g., `encoding/json.Encoder.Encode`)
+- **Wrapper** for their `unsafe` operations (if added to `SafeStdlibPackages`)
+
+However, the current design keeps them separate:
+
+- Stdlib packages in `StdlibAST` get AST injection ONLY (their `unsafe` calls stay as-is)
+- Stdlib packages in `SafeStdlibPackages` get wrapper ONLY (if they use instrumented packages)
+- User/dependency code always uses wrappers
+
+**Rationale**: Stdlib's internal `unsafe` usage is implementation detail. We care about observing user/dependency unsafe operations.
+
 ## Adding Instrumented Functions
 
-### 1. Create Wrapper Function
+### Option 1: AST Injection (Stdlib Methods)
+
+**When**: Instrumenting stdlib package methods (e.g., `http.Client.Do`)
+
+1. **Update Registry** (`pkg/preprocessor/registry.go`):
 
 ```go
-// pkg/instrumentation/crypto/sha256.go
+StdlibAST: map[string]StdlibASTInstrumentation{
+    "reflect": { /* existing */ },
+    "net/http": {
+        PackageName: "net/http",
+        Functions: []string{"Get", "Post"},
+        Methods: []StdlibMethodInstrumentation{
+            {
+                ReceiverType: "Client",
+                MethodNames:  []string{"Do", "Get", "Post"},
+            },
+        },
+    },
+},
+```
+
+2. **Test**: AST injection happens automatically at compile-time
+
+```bash
+make docker-build
+make dev-docker-run
+# Check logs for new operations
+```
+
+### Option 2: Wrapper Module (User/Dependency Code)
+
+**When**: Instrumenting package-level functions
+
+1. **Create Wrapper** (`pkg/instrumentation/crypto/sha256.go`):
+
+```go
 package sha256
 
 import (
@@ -177,26 +254,30 @@ func Sum256(data []byte) [32]byte {
 }
 ```
 
-### 2. Update Registry
+2. **Update Registry** (`pkg/preprocessor/registry.go`):
 
 ```go
-// pkg/preprocessor/config.go
-var DefaultConfig = InstrumentationConfig{
-    // ... existing config ...
-    Sha256: InstrumentationTarget{
-        Pkg:       "runtime_observe_instrumentation/crypto/sha256",
-        Functions: []string{"Sum256"},
+var DefaultRegistry = Registry{
+    Instrumentation: map[string]InstrumentedPackage{
+        "unsafe": { /* existing */ },
+        "crypto/sha256": {
+            Pkg:       "runtime_observe_instrumentation/crypto/sha256",
+            Functions: []string{"Sum256"},
+        },
     },
-}
-
-// Add to safe packages
-var DefaultSafePackages = []string{
-    // ... existing packages ...
-    "crypto/sha256",
+    // Optionally add to safe stdlib (if instrumenting stdlib usage)
+    SafeStdlibPackages: []string{
+        "encoding/json",
+        "crypto/sha256",  // If stdlib can safely use this wrapper
+    },
 }
 ```
 
-### 3. Test
+3. **Update install script** (`scripts/install-instrumentation-to-go.sh`):
+
+Add logic to copy the new module to Go source during installation.
+
+4. **Test**
 
 ```bash
 # Rebuild and test

@@ -63,7 +63,6 @@ import (
 		t.Error("Should detect existing import")
 	}
 
-
 	codeWithoutImport := `package load
 
 import "fmt"
@@ -78,4 +77,3 @@ import "fmt"
 		t.Error("Should not detect import when not present")
 	}
 }
-

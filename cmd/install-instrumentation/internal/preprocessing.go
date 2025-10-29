@@ -28,7 +28,7 @@ func InjectCode(filePath string, injection config.InjectionConfig) error {
 	lines := strings.Split(string(content), "\n")
 
 	if injection.Line < 1 || injection.Line > len(lines) {
-		return fmt.Errorf("line %d is out of range (file has %d lines)", 
+		return fmt.Errorf("line %d is out of range (file has %d lines)",
 			injection.Line, len(lines))
 	}
 
@@ -40,7 +40,7 @@ func InjectCode(filePath string, injection config.InjectionConfig) error {
 	lines = injectCodeAtLine(lines, injection.Line, codeLines)
 
 	modifiedContent := strings.Join(lines, "\n")
-	
+
 	if _, err := parser.ParseFile(token.NewFileSet(), filePath, modifiedContent, parser.ParseComments); err != nil {
 		return fmt.Errorf("generated code is not valid Go: %w", err)
 	}
@@ -86,22 +86,22 @@ func generateInjectionCode(injection config.InjectionConfig) ([]string, error) {
 // Important: anything that appears in config
 func validateInjectionConfig(injection config.InjectionConfig) error {
 	if injection.Instrument.Function != ALLOWED_INSTRUMENT_FUNCTION {
-		return fmt.Errorf("instrument function must be %q, got %q", 
+		return fmt.Errorf("instrument function must be %q, got %q",
 			ALLOWED_INSTRUMENT_FUNCTION, injection.Instrument.Function)
 	}
 
 	if len(injection.Instrument.Args) != REQUIRED_INSTRUMENT_ARG_COUNT {
-		return fmt.Errorf("instrument function requires exactly %d arguments, got %d", 
+		return fmt.Errorf("instrument function requires exactly %d arguments, got %d",
 			REQUIRED_INSTRUMENT_ARG_COUNT, len(injection.Instrument.Args))
 	}
 
 	if len(injection.Instrument.Result) > 0 && len(injection.Instrument.Result) != REQUIRED_INSTRUMENT_RESULT_COUNT {
-		return fmt.Errorf("instrument function must return exactly %d results or none, got %d", 
+		return fmt.Errorf("instrument function must return exactly %d results or none, got %d",
 			REQUIRED_INSTRUMENT_RESULT_COUNT, len(injection.Instrument.Result))
 	}
 
 	if len(injection.Reparse.Result) != REQUIRED_REPARSE_RESULT_COUNT {
-		return fmt.Errorf("reparse must assign to exactly %d results, got %d", 
+		return fmt.Errorf("reparse must assign to exactly %d results, got %d",
 			REQUIRED_REPARSE_RESULT_COUNT, len(injection.Reparse.Result))
 	}
 

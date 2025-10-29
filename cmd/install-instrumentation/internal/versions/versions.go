@@ -17,7 +17,7 @@ import (
 //  2. Import the package here
 //  3. Add the version to this map
 var SupportedVersions = map[string]config.VersionConfig{
-	"1.19": v1_19.GetConfig(),
+	"1.19":   v1_19.GetConfig(),
 	"1.23.0": v1_23.GetConfig(),
 }
 
@@ -111,4 +111,3 @@ func (e *VersionNotFoundError) Error() string {
 	}
 	return "no configuration found for Go version " + e.Version
 }
-

@@ -3,8 +3,17 @@ set -euo pipefail
 
 SUPPORTED_VERSIONS=("1.19" "1.23.0")
 TEST_SPECIFIC_VERSION="${1:-}"
+VERBOSE="${VERBOSE:-false}"
 FAILED_VERSIONS=()
 PASSED_VERSIONS=()
+
+silent() {
+    if [ "${VERBOSE}" = "true" ]; then
+        "$@"
+    else
+        "$@" >/dev/null 2>&1 || true
+    fi
+}
 
 run_test_for_version() {
     local GO_VERSION=$1
@@ -13,8 +22,18 @@ run_test_for_version() {
     local TEST_DIR=$(mktemp -d)
     trap "rm -rf ${TEST_DIR}" RETURN
     
-    if ! make docker-build GO_VERSION=${GO_VERSION} >/dev/null 2>&1; then
+    silent make clean
+    silent make dev-update-example-gomod GO_VERSION=${GO_VERSION}
+    
+    if ! make docker-build GO_VERSION=${GO_VERSION} 2>&1 | tee "${TEST_DIR}/docker-build.log" >/dev/null; then
         echo "  FAIL: Container build failed"
+        echo "  Last 10 lines of build output:"
+        tail -10 "${TEST_DIR}/docker-build.log" | sed 's/^/    /'
+        return 1
+    fi
+    
+    if ! silent docker image inspect instrumented-go:${GO_VERSION}; then
+        echo "  FAIL: Container image not found after build"
         return 1
     fi
     
@@ -23,8 +42,10 @@ run_test_for_version() {
         -e GO_INSTRUMENT_UNSAFE=true \
         -e GO_INSTRUMENT_REFLECT=true \
         instrumented-go:${GO_VERSION} \
-        build -o /work/test-app-${GO_VERSION} . >/dev/null 2>&1; then
+        build -o /work/test-app-${GO_VERSION} . 2>&1 | tee "${TEST_DIR}/app-build.log" | tail -1; then
         echo "  FAIL: App build failed"
+        echo "  Build output:"
+        cat "${TEST_DIR}/app-build.log" | sed 's/^/    /'
         return 1
     fi
     
@@ -32,8 +53,10 @@ run_test_for_version() {
         -v $(pwd)/examples/app:/work \
         -e INSTRUMENTATION_LOG_PATH=/work/test-${GO_VERSION}.log \
         --entrypoint /work/test-app-${GO_VERSION} \
-        instrumented-go:${GO_VERSION} >/dev/null 2>&1; then
+        instrumented-go:${GO_VERSION} 2>&1 | tee "${TEST_DIR}/app-run.log" >/dev/null; then
         echo "  FAIL: App execution failed"
+        echo "  Execution output:"
+        cat "${TEST_DIR}/app-run.log" | sed 's/^/    /'
         rm -f examples/app/test-app-${GO_VERSION}
         return 1
     fi
@@ -67,6 +90,9 @@ run_test_for_version() {
 
 main() {
     echo "Testing installation compatibility..."
+    if [ "${VERBOSE}" = "true" ]; then
+        echo "Verbose mode enabled"
+    fi
     echo ""
     
     local VERSIONS_TO_TEST=()

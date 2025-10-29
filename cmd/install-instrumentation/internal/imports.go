@@ -7,9 +7,8 @@ import (
 )
 
 const (
-	IMPORT_VALUE = `"runtime_observe_instrumentation/preprocessor"`
+	IMPORT_VALUE           = `"runtime_observe_instrumentation/preprocessor"`
 	IMPORT_BLOCK_NOT_FOUND = "no import block found"
-
 )
 
 func AddImport(file *ast.File) error {
@@ -54,4 +53,3 @@ func HasImport(file *ast.File) bool {
 	}
 	return false
 }
-

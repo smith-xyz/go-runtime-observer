@@ -4,7 +4,6 @@ import (
 	"os"
 )
 
-
 type Config struct {
 	InstrumentUnsafe  bool
 	InstrumentReflect bool
@@ -24,5 +23,3 @@ func LoadConfigFromEnv() (Config, error) {
 func (c Config) ShouldInstrument() bool {
 	return c.InstrumentUnsafe || c.InstrumentReflect
 }
-
-

@@ -30,22 +30,24 @@ echo "Instrumenting Go ${GO_VERSION}..."
 echo "Copying instrumentation files..."
 
 # Copy all instrumentation files
-mkdir -p "${INSTRUMENTATION_DIR}"/{instrumentlog,unsafe,reflect,preprocessor}
+mkdir -p "${INSTRUMENTATION_DIR}"/{instrumentlog,unsafe,preprocessor}
 
 # Copy instrumentlog
 cp pkg/instrumentation/instrumentlog/logger.go "${INSTRUMENTATION_DIR}/instrumentlog/"
 
-# Copy unsafe with import transformation
-sed 's|github.com/smith-xyz/go-runtime-observer/pkg/instrumentation/instrumentlog|runtime_observe_instrumentation/instrumentlog|g' \
-    pkg/instrumentation/unsafe/unsafe.go > "${INSTRUMENTATION_DIR}/unsafe/unsafe.go"
+# Copy version specific items as needed to prevent compilation from breaking
+if [[ "$GO_VERSION" < "1.20" ]]; then
+    UNSAFE_SOURCE="pkg/instrumentation/unsafe/v1_19/unsafe.go"
+else
+    UNSAFE_SOURCE="pkg/instrumentation/unsafe/v1_20/unsafe.go"
+fi
 
-# Copy reflect with import transformation  
 sed 's|github.com/smith-xyz/go-runtime-observer/pkg/instrumentation/instrumentlog|runtime_observe_instrumentation/instrumentlog|g' \
-    pkg/instrumentation/reflect/reflect.go > "${INSTRUMENTATION_DIR}/reflect/reflect.go"
+    "$UNSAFE_SOURCE" > "${INSTRUMENTATION_DIR}/unsafe/unsafe.go"
 
 # Copy preprocessor files
 sed '/fmt\.Printf.*DEBUG/d' pkg/preprocessor/config.go > "${INSTRUMENTATION_DIR}/preprocessor/config.go"
-cp pkg/preprocessor/{preprocessor.go,registry.go,tempdir.go} "${INSTRUMENTATION_DIR}/preprocessor/"
+cp pkg/preprocessor/{preprocessor.go,registry.go,tempdir.go,ast_inject.go,stdlib_instrument.go} "${INSTRUMENTATION_DIR}/preprocessor/"
 
 echo "Building install-instrumentation..."
 go build -o bin/install-instrumentation ./cmd/install-instrumentation

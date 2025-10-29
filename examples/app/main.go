@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"unsafe"
 
+	"example.com/example/app/internal/security"
 	"gopkg.in/yaml.v3"
 )
 
@@ -41,6 +42,10 @@ func (k *KubeConfig) Validate() error {
 }
 
 func main() {
+	if !security.ValidateInput("test") {
+		panic("validation failed")
+	}
+
 	for i := 0; i < 5; i++ {
 		reflect.ValueOf(fmt.Sprintf("hello-%d", i))
 	}
@@ -85,4 +90,6 @@ spec:
 	p9 := &a[9]
 	up9 := unsafe.Pointer(p9)
 	_ = (*int)(unsafe.Add(up9, -6*eleSize))
+
+	security.UnsafeMemoryOperator(5)
 }

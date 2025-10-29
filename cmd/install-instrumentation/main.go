@@ -45,14 +45,14 @@ func main() {
 	}
 
 	fmt.Printf("Instrumenting Go %s\n", versionConfig.Go)
-	
+
 	if len(versionConfig.Injections) > 0 {
 		fmt.Printf("Injections (%d):\n", len(versionConfig.Injections))
 		for _, inj := range versionConfig.Injections {
 			fmt.Printf("  - %s: line %d (%s)\n", inj.Name, inj.Line, inj.Description)
 		}
 	}
-	
+
 	if len(versionConfig.Patches) > 0 {
 		fmt.Printf("Patches (%d):\n", len(versionConfig.Patches))
 		for _, patch := range versionConfig.Patches {
@@ -67,4 +67,3 @@ func main() {
 
 	fmt.Println("Successfully instrumented Go toolchain")
 }
-

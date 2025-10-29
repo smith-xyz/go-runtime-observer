@@ -6,7 +6,7 @@ import (
 
 func TestRegistry_IsUserPackage(t *testing.T) {
 	registry := &DefaultRegistry
-	
+
 	tests := []struct {
 		name     string
 		filePath string
@@ -20,20 +20,20 @@ func TestRegistry_IsUserPackage(t *testing.T) {
 		{"user api", "/home/user/myproject/api/handlers.go", true},
 		{"user service", "/home/user/myproject/services/auth.go", true},
 		{"user model", "/home/user/myproject/models/user.go", true},
-		
+
 		// Go stdlib - should return false
 		{"go stdlib encoding/json", "/tmp/go-source/1.23.0/go/src/encoding/json/encode.go", false},
 		{"go stdlib runtime", "/tmp/go-source/1.23.0/go/src/runtime/malloc.go", false},
 		{"go stdlib internal", "/tmp/go-source/1.23.0/go/src/internal/reflectlite/type.go", false},
 		{"go stdlib os", "/tmp/go-source/1.23.0/go/src/os/file.go", false},
 		{"go stdlib net/http", "/tmp/go-source/1.23.0/go/src/net/http/server.go", false},
-		
+
 		// Dependencies - should return false (handled by IsDependencyPackage)
 		{"github dependency", "/home/user/myproject/vendor/github.com/gin-gonic/gin/gin.go", false},
 		{"golang.org dependency", "/home/user/myproject/pkg/mod/golang.org/x/net/http2/server.go", false},
 		{"go mod cache", "/home/user/go/pkg/mod/github.com/gin-gonic/gin@v1.9.1/gin.go", false},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := registry.IsUserPackage(tt.filePath)
@@ -46,7 +46,7 @@ func TestRegistry_IsUserPackage(t *testing.T) {
 
 func TestRegistry_IsDependencyPackage(t *testing.T) {
 	registry := &DefaultRegistry
-	
+
 	tests := []struct {
 		name     string
 		filePath string
@@ -64,19 +64,19 @@ func TestRegistry_IsDependencyPackage(t *testing.T) {
 		{"go mod cache", "/home/user/go/pkg/mod/github.com/gin-gonic/gin@v1.9.1/gin.go", true},
 		{"go mod cache golang.org", "/home/user/go/pkg/mod/golang.org/x/net@v0.17.0/http2/server.go", true},
 		{"go mod cache google", "/home/user/go/pkg/mod/google.golang.org/grpc@v1.59.0/server.go", true},
-		
+
 		// User code - should return false
 		{"user main.go", "/home/user/myproject/main.go", false},
 		{"user package", "/home/user/myproject/pkg/mypackage/file.go", false},
 		{"user internal", "/home/user/myproject/internal/helper/file.go", false},
 		{"user cmd", "/home/user/myproject/cmd/server/main.go", false},
 		{"user api", "/home/user/myproject/api/handlers.go", false},
-		
+
 		// Go stdlib - should return false
 		{"go stdlib", "/tmp/go-source/1.23.0/go/src/encoding/json/encode.go", false},
 		{"go runtime", "/tmp/go-source/1.23.0/go/src/runtime/malloc.go", false},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := registry.IsDependencyPackage(tt.filePath)
@@ -89,7 +89,7 @@ func TestRegistry_IsDependencyPackage(t *testing.T) {
 
 func TestRegistry_IsStdLibSafe(t *testing.T) {
 	registry := &DefaultRegistry
-	
+
 	tests := []struct {
 		name     string
 		filePath string
@@ -97,7 +97,7 @@ func TestRegistry_IsStdLibSafe(t *testing.T) {
 	}{
 		// Safe stdlib packages - should return true
 		{"encoding/json", "/tmp/go-source/1.23.0/go/src/encoding/json/encode.go", true},
-		
+
 		// Unsafe stdlib packages - should return false
 		{"runtime package", "/tmp/go-source/1.23.0/go/src/runtime/malloc.go", false},
 		{"internal package", "/tmp/go-source/1.23.0/go/src/internal/reflectlite/type.go", false},
@@ -106,12 +106,12 @@ func TestRegistry_IsStdLibSafe(t *testing.T) {
 		{"unknown stdlib", "/tmp/go-source/1.23.0/go/src/unknown/package/file.go", false},
 		{"os package", "/tmp/go-source/1.23.0/go/src/os/file.go", false},
 		{"net/http package", "/tmp/go-source/1.23.0/go/src/net/http/server.go", false},
-		
+
 		// Non-stdlib - should return false
 		{"user code", "/home/user/myproject/main.go", false},
 		{"dependency", "/home/user/myproject/vendor/github.com/gin-gonic/gin/gin.go", false},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := registry.IsStdLibSafe(tt.filePath)
@@ -124,7 +124,7 @@ func TestRegistry_IsStdLibSafe(t *testing.T) {
 
 func TestRegistry_ShouldInstrument(t *testing.T) {
 	registry := &DefaultRegistry
-	
+
 	tests := []struct {
 		name     string
 		filePath string
@@ -136,15 +136,15 @@ func TestRegistry_ShouldInstrument(t *testing.T) {
 		{"user internal", "/home/user/myproject/internal/helper/file.go", true},
 		{"user cmd", "/home/user/myproject/cmd/server/main.go", true},
 		{"user api", "/home/user/myproject/api/handlers.go", true},
-		
+
 		// Dependencies - should return true
 		{"github dependency", "/home/user/myproject/vendor/github.com/gin-gonic/gin/gin.go", true},
 		{"golang.org dependency", "/home/user/myproject/pkg/mod/golang.org/x/net/http2/server.go", true},
 		{"go mod cache", "/home/user/go/pkg/mod/github.com/gin-gonic/gin@v1.9.1/gin.go", true},
-		
+
 		// Safe stdlib - should return true
 		{"encoding/json", "/tmp/go-source/1.23.0/go/src/encoding/json/encode.go", true},
-		
+
 		// Unsafe stdlib - should return false
 		{"runtime package", "/tmp/go-source/1.23.0/go/src/runtime/malloc.go", false},
 		{"internal package", "/tmp/go-source/1.23.0/go/src/internal/reflectlite/type.go", false},
@@ -154,7 +154,7 @@ func TestRegistry_ShouldInstrument(t *testing.T) {
 		{"os package", "/tmp/go-source/1.23.0/go/src/os/file.go", false},
 		{"net/http package", "/tmp/go-source/1.23.0/go/src/net/http/server.go", false},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := registry.ShouldInstrument(tt.filePath)
@@ -183,14 +183,14 @@ func TestRegistry_ExtractPackageName(t *testing.T) {
 		{"syscall", "/tmp/go-source/1.23.0/go/src/syscall/syscall_unix.go", "syscall"},
 		{"file directly under src", "/tmp/go-source/1.23.0/go/src/unsafe.go", "unsafe"},
 		{"file directly under src no extension", "/tmp/go-source/1.23.0/go/src/unsafe", "unsafe"},
-		
+
 		// Non-stdlib - should return unknown
 		{"user code", "/home/user/myproject/main.go", "unknown"},
 		{"dependency", "/home/user/myproject/vendor/github.com/gin-gonic/gin/gin.go", "unknown"},
 		{"go mod cache", "/home/user/go/pkg/mod/github.com/gin-gonic/gin@v1.9.1/gin.go", "unknown"},
 		{"no src", "/home/user/some/file.go", "unknown"},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := extractPackageName(tt.filePath)

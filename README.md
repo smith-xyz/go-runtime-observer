@@ -6,8 +6,8 @@ Log what your Go code actually does at runtime - including calls to `reflect`, `
 
 Instruments a Go toolchain to capture runtime behavior. When you build with an instrumented Go, it logs operations like:
 
-- `reflect.ValueOf` calls and what triggered them
-- `unsafe` pointer operations
+- **Reflection operations**: `reflect.ValueOf`, `reflect.TypeOf`, `reflect.Value.Call`, `reflect.Value.Set`, `reflect.Value.Method`, `reflect.MakeMap`, `reflect.New`
+- **Unsafe operations**: `unsafe.Add`, `unsafe.Slice`, `unsafe.String` (memory manipulation)
 - Any standard library function you configure
 
 Your code stays completely untouched. The instrumentation happens during compilation in temporary directories.
@@ -30,9 +30,12 @@ make dev-docker-run
 Output shows calls from your code, dependencies, and the standard library:
 
 ```json
-{"operation":"ValueOf","caller":"main.main","file":"/work/main.go","line":21}
-{"operation":"ValueOf","caller":"gopkg.in/yaml.v3.unmarshal","file":"/tmp/go-runtime-observer-abc123/dependency/gopkg.in/yaml.v3/decode.go","line":156}
-{"operation":"ValueOf","caller":"encoding/json.(*encodeState).marshal","file":"/tmp/go-runtime-observer-abc123/stdlib/encoding/json/encode.go","line":298}
+{"operation":"reflect.ValueOf","caller":"main.main","file":"/work/main.go","line":46}
+{"operation":"reflect.Value.Call","caller":"main.main","file":"/work/main.go","line":81}
+{"operation":"reflect.ValueOf","caller":"gopkg.in/yaml.v3.unmarshal","file":"/tmp/go-runtime-observer-abc123/dependency/gopkg.in/yaml.v3/yaml.go","line":163}
+{"operation":"reflect.MakeMap","caller":"gopkg.in/yaml.v3.(*decoder).mapping","file":"/tmp/go-runtime-observer-abc123/dependency/gopkg.in/yaml.v3/decode.go","line":823}
+{"operation":"reflect.Value.SetString","caller":"encoding/json.(*decodeState).literalStore","file":"/tmp/go-runtime-observer-abc123/stdlib/encoding/json/decode.go","line":950}
+{"operation":"unsafe.Add","caller":"main.main","file":"/tmp/go-runtime-observer-abc123/user/app/main.go","line":88,"ptr":"0x140001e4448","len":"-48"}
 ```
 
 ## How It Works
@@ -105,11 +108,14 @@ INSTRUMENTATION_LOG_PATH=/path/to/log
 
 ## Supported Go Versions
 
-Currently supports:
+| Go Version | Status | Notes                       |
+| ---------- | ------ | --------------------------- |
+| 1.23.x     | Tested | Primary development version |
+| 1.19.x     | Tested | Minimum supported version   |
 
-- Go 1.23.0 (and compatible patch versions like 1.23.1, 1.23.2)
+**Version Fallback**: Patch versions automatically use the base config (e.g., `1.23.5` uses `1.23.0` config). Different minor versions (1.20, 1.21, etc.) require separate configs.
 
-Version matching is automatic - requesting `1.23.5` will use the `1.23.0` configuration if no specific `1.23.5` config exists.
+**Note**: Go 1.19-1.20 on macOS may have compatibility issues. Use Docker for these versions.
 
 ## Adding New Functions to Instrument
 

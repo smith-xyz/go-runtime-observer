@@ -23,6 +23,10 @@ examples/app/go.mod
 *.out
 vendor/
 
+# Test coverage
+coverage.out
+coverage.html
+
 # Go workspace file
 go.work
 

@@ -53,4 +53,3 @@ func GetConfig() config.VersionConfig {
 		},
 	}
 }
-

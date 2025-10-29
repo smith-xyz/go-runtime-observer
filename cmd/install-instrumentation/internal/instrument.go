@@ -23,7 +23,7 @@ func InstrumentFile(goSourceRoot string, goVersion string) error {
 
 	for _, injection := range versionConfig.Injections {
 		filePath := filepath.Join(goSourceRoot, injection.TargetFile)
-		
+
 		if !processedFiles[filePath] {
 			content, err := os.ReadFile(filePath)
 			if err != nil {
@@ -85,11 +85,10 @@ func ApplyPatch(filePath string, patch config.PatchConfig) error {
 	}
 
 	newContent := strings.Replace(string(content), patch.Find, patch.Replace, 1)
-	
+
 	if err := os.WriteFile(filePath, []byte(newContent), 0644); err != nil {
 		return fmt.Errorf("failed to write %s: %w", patch.TargetFile, err)
 	}
 
 	return nil
 }
-

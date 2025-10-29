@@ -278,5 +278,3 @@ var (
 		t.Errorf("Expected 'could not find target string' error, got: %v", err)
 	}
 }
-
-
