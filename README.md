@@ -111,6 +111,8 @@ INSTRUMENTATION_LOG_PATH=/path/to/log
 | Go Version | Status | Notes                       |
 | ---------- | ------ | --------------------------- |
 | 1.23.x     | Tested | Primary development version |
+| 1.21.x     | Tested |                             |
+| 1.20.x     | Tested |                             |
 | 1.19.x     | Tested | Minimum supported version   |
 
 **Version Fallback**: Patch versions automatically use the base config (e.g., `1.23.5` uses `1.23.0` config). Different minor versions (1.20, 1.21, etc.) require separate configs.
