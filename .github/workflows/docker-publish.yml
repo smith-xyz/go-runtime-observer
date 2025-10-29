@@ -12,13 +12,30 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
+  wait-for-ci:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Wait for CI to pass
+        uses: lewagon/wait-on-check-action@v1.3.1
+        with:
+          ref: ${{ github.sha }}
+          check-name: "Quality Gate"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          wait-interval: 10
+
   load-versions:
+    needs: [wait-for-ci]
+    if: always() && (needs.wait-for-ci.result == 'success' || needs.wait-for-ci.result == 'skipped')
     runs-on: ubuntu-latest
     outputs:
       versions: ${{ steps.set-versions.outputs.versions }}
+      framework-version: ${{ steps.framework-version.outputs.version }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Load Go versions
         id: set-versions
@@ -26,7 +43,18 @@ jobs:
           VERSIONS=$(jq -c '.versions' .github/go-versions.json)
           echo "versions=$VERSIONS" >> $GITHUB_OUTPUT
 
-  build-and-push:
+      - name: Extract framework version
+        id: framework-version
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/}
+          else
+            VERSION="dev"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Framework version: $VERSION"
+
+  build-amd64:
     needs: load-versions
     runs-on: ubuntu-latest
     permissions:
@@ -40,8 +68,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -53,38 +79,116 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract framework version
-        id: framework-version
+      - name: Determine tag suffix
+        id: tag-suffix
         run: |
           if [[ "${{ github.ref }}" == refs/tags/* ]]; then
-            VERSION=${GITHUB_REF#refs/tags/}
+            echo "suffix=${{ needs.load-versions.outputs.framework-version }}" >> $GITHUB_OUTPUT
           else
-            VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "dev")
+            echo "suffix=edge" >> $GITHUB_OUTPUT
           fi
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Framework version: $VERSION"
 
-      - name: Generate Docker metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=raw,value=go${{ matrix.go-version }}-${{ steps.framework-version.outputs.version }},enable=${{ startsWith(github.ref, 'refs/tags/') }}
-            type=raw,value=go${{ matrix.go-version }}-edge,enable=${{ github.ref == 'refs/heads/main' }}
-            type=raw,value=${{ steps.framework-version.outputs.version }},enable=${{ matrix.go-version == '1.24.9' && startsWith(github.ref, 'refs/tags/') }}
-            type=raw,value=edge,enable=${{ matrix.go-version == '1.24.9' && github.ref == 'refs/heads/main' }}
-
-      - name: Build and push Docker image
+      - name: Build and push AMD64
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./build/Dockerfile
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:go${{ matrix.go-version }}-${{ steps.tag-suffix.outputs.suffix }}-amd64
           build-args: |
             GO_VERSION=${{ matrix.go-version }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=amd64-${{ matrix.go-version }}
+          cache-to: type=gha,mode=max,scope=amd64-${{ matrix.go-version }}
+
+  build-arm64:
+    needs: load-versions
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      matrix:
+        go-version: ${{ fromJson(needs.load-versions.outputs.versions) }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Determine tag suffix
+        id: tag-suffix
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "suffix=${{ needs.load-versions.outputs.framework-version }}" >> $GITHUB_OUTPUT
+          else
+            echo "suffix=edge" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build and push ARM64
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./build/Dockerfile
+          platforms: linux/arm64
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:go${{ matrix.go-version }}-${{ steps.tag-suffix.outputs.suffix }}-arm64
+          build-args: |
+            GO_VERSION=${{ matrix.go-version }}
+          cache-from: type=gha,scope=arm64-${{ matrix.go-version }}
+          cache-to: type=gha,mode=max,scope=arm64-${{ matrix.go-version }}
+
+  create-manifests:
+    needs: [load-versions, build-amd64, build-arm64]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      matrix:
+        go-version: ${{ fromJson(needs.load-versions.outputs.versions) }}
+
+    steps:
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Determine tag suffix
+        id: tag-suffix
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "suffix=${{ needs.load-versions.outputs.framework-version }}" >> $GITHUB_OUTPUT
+          else
+            echo "suffix=edge" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create and push versioned manifest
+        run: |
+          docker manifest create \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:go${{ matrix.go-version }}-${{ steps.tag-suffix.outputs.suffix }} \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:go${{ matrix.go-version }}-${{ steps.tag-suffix.outputs.suffix }}-amd64 \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:go${{ matrix.go-version }}-${{ steps.tag-suffix.outputs.suffix }}-arm64
+          docker manifest push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:go${{ matrix.go-version }}-${{ steps.tag-suffix.outputs.suffix }}
+
+      - name: Create and push latest Go manifest
+        if: matrix.go-version == '1.24.9'
+        run: |
+          docker manifest create \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag-suffix.outputs.suffix }} \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:go${{ matrix.go-version }}-${{ steps.tag-suffix.outputs.suffix }}-amd64 \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:go${{ matrix.go-version }}-${{ steps.tag-suffix.outputs.suffix }}-arm64
+          docker manifest push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag-suffix.outputs.suffix }}
