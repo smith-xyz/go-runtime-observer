@@ -1,10 +1,22 @@
 package config
 
 type VersionConfig struct {
-	Go         string
-	Notes      string
-	Injections []InjectionConfig
+	Go          string
+	BaseVersion string
+	Notes       string
+	Injections  []InjectionConfig
+	Patches     []PatchConfig
+	Overrides   map[string]VersionOverride
+}
+
+type VersionOverride struct {
+	Injections []InjectionOverride
 	Patches    []PatchConfig
+}
+
+type InjectionOverride struct {
+	Name string
+	Line int
 }
 
 type PatchConfig struct {

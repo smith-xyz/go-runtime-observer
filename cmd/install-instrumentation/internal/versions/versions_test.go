@@ -6,104 +6,156 @@ import (
 	"github.com/smith-xyz/go-runtime-observer/cmd/install-instrumentation/internal/versions/config"
 )
 
-func TestGetVersionConfig_ExactMatch(t *testing.T) {
+func TestGetVersionConfig_MinorVersionMatch(t *testing.T) {
 	cfg, err := GetVersionConfig("1.23.0")
 	if err != nil {
-		t.Fatalf("Expected exact match for 1.23.0, got error: %v", err)
+		t.Fatalf("Expected match for 1.23.0, got error: %v", err)
 	}
-	if cfg.Go != "1.23.0" {
-		t.Errorf("Expected Go version 1.23.0, got %s", cfg.Go)
+	if cfg.Go != "1.23" {
+		t.Errorf("Expected Go version 1.23, got %s", cfg.Go)
 	}
-}
-
-func TestGetVersionConfig_PatchFallback(t *testing.T) {
-	cfg, err := GetVersionConfig("1.23.1")
-	if err != nil {
-		t.Fatalf("Expected fallback to 1.23.0 for 1.23.1, got error: %v", err)
-	}
-	if cfg.Go != "1.23.0" {
-		t.Errorf("Expected fallback to 1.23.0, got %s", cfg.Go)
-	}
-
-	cfg, err = GetVersionConfig("1.23.5")
-	if err != nil {
-		t.Fatalf("Expected fallback to 1.23.0 for 1.23.5, got error: %v", err)
-	}
-	if cfg.Go != "1.23.0" {
-		t.Errorf("Expected fallback to 1.23.0, got %s", cfg.Go)
+	if cfg.BaseVersion != "1.23.0" {
+		t.Errorf("Expected BaseVersion 1.23.0, got %s", cfg.BaseVersion)
 	}
 }
 
-func TestGetVersionConfig_NoMatch(t *testing.T) {
-	_, err := GetVersionConfig("1.24.0")
+func TestGetVersionConfig_PatchVersions(t *testing.T) {
+	tests := []struct {
+		version string
+		wantGo  string
+	}{
+		{"1.23.1", "1.23"},
+		{"1.23.5", "1.23"},
+		{"1.23.99", "1.23"},
+		{"1.19.0", "1.19"},
+		{"1.19.13", "1.19"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.version, func(t *testing.T) {
+			cfg, err := GetVersionConfig(tt.version)
+			if err != nil {
+				t.Fatalf("Expected match for %s, got error: %v", tt.version, err)
+			}
+			if cfg.Go != tt.wantGo {
+				t.Errorf("Expected Go version %s, got %s", tt.wantGo, cfg.Go)
+			}
+		})
+	}
+}
+
+func TestGetVersionConfig_UnsupportedMinor(t *testing.T) {
+	_, err := GetVersionConfig("1.25.0")
 	if err == nil {
-		t.Fatal("Expected error for unsupported version 1.24.0")
+		t.Fatal("Expected error for unsupported version 1.25.0")
 	}
 
 	vErr, ok := err.(*VersionNotFoundError)
 	if !ok {
 		t.Fatalf("Expected VersionNotFoundError, got %T", err)
 	}
-	if vErr.Version != "1.24.0" {
-		t.Errorf("Expected version 1.24.0 in error, got %s", vErr.Version)
+	if vErr.Version != "1.25.0" {
+		t.Errorf("Expected version 1.25.0 in error, got %s", vErr.Version)
 	}
 }
 
-func TestGetVersionConfig_LowerPatchNotAllowed(t *testing.T) {
-	SupportedVersions["1.22.3"] = config.VersionConfig{
-		Go:    "1.22.3",
-		Notes: "Test version",
+func TestGetVersionConfig_WithOverride(t *testing.T) {
+	testConfig := config.VersionConfig{
+		Go:          "1.99",
+		BaseVersion: "1.99.0",
+		Notes:       "Test config with overrides",
+		Injections: []config.InjectionConfig{
+			{
+				Name:       "test_injection",
+				TargetFile: "test.go",
+				Line:       100,
+			},
+			{
+				Name:       "another_injection",
+				TargetFile: "test.go",
+				Line:       200,
+			},
+		},
+		Overrides: map[string]config.VersionOverride{
+			"1.99.5": {
+				Injections: []config.InjectionOverride{
+					{
+						Name: "test_injection",
+						Line: 105,
+					},
+				},
+			},
+		},
 	}
-	defer delete(SupportedVersions, "1.22.3")
 
-	_, err := GetVersionConfig("1.22.2")
-	if err == nil {
-		t.Fatal("Expected error when requesting 1.22.2 with only 1.22.3 available")
-	}
+	SupportedVersions["1.99"] = testConfig
+	defer delete(SupportedVersions, "1.99")
+
+	t.Run("base version uses original line numbers", func(t *testing.T) {
+		cfg, err := GetVersionConfig("1.99.0")
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+
+		if len(cfg.Injections) != 2 {
+			t.Fatalf("Expected 2 injections, got %d", len(cfg.Injections))
+		}
+
+		if cfg.Injections[0].Line != 100 {
+			t.Errorf("Expected base line 100, got %d", cfg.Injections[0].Line)
+		}
+		if cfg.Injections[1].Line != 200 {
+			t.Errorf("Expected base line 200, got %d", cfg.Injections[1].Line)
+		}
+	})
+
+	t.Run("override version uses modified line number", func(t *testing.T) {
+		cfg, err := GetVersionConfig("1.99.5")
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+
+		if len(cfg.Injections) != 2 {
+			t.Fatalf("Expected 2 injections, got %d", len(cfg.Injections))
+		}
+
+		if cfg.Injections[0].Line != 105 {
+			t.Errorf("Expected overridden line 105, got %d", cfg.Injections[0].Line)
+		}
+		if cfg.Injections[1].Line != 200 {
+			t.Errorf("Expected unchanged line 200, got %d", cfg.Injections[1].Line)
+		}
+	})
+
+	t.Run("non-override version uses base config", func(t *testing.T) {
+		cfg, err := GetVersionConfig("1.99.3")
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+
+		if cfg.Injections[0].Line != 100 {
+			t.Errorf("Expected base line 100, got %d", cfg.Injections[0].Line)
+		}
+	})
 }
 
-func TestGetVersionConfig_HighestPatchSelected(t *testing.T) {
-	SupportedVersions["1.22.0"] = config.VersionConfig{
-		Go:    "1.22.0",
-		Notes: "Test version 1.22.0",
-	}
-	SupportedVersions["1.22.2"] = config.VersionConfig{
-		Go:    "1.22.2",
-		Notes: "Test version 1.22.2",
-	}
-	defer func() {
-		delete(SupportedVersions, "1.22.0")
-		delete(SupportedVersions, "1.22.2")
-	}()
-
-	cfg, err := GetVersionConfig("1.22.5")
-	if err != nil {
-		t.Fatalf("Expected fallback to 1.22.2 for 1.22.5, got error: %v", err)
-	}
-	if cfg.Go != "1.22.2" {
-		t.Errorf("Expected fallback to highest patch 1.22.2, got %s", cfg.Go)
-	}
-}
-
-func TestParseVersion(t *testing.T) {
+func TestGetMinorVersion(t *testing.T) {
 	tests := []struct {
 		version string
-		major   int
-		minor   int
-		patch   int
+		want    string
 		wantErr bool
 	}{
-		{"1.23.0", 1, 23, 0, false},
-		{"1.23.5", 1, 23, 5, false},
-		{"2.0.1", 2, 0, 1, false},
-		{"1.23", 0, 0, 0, true},
-		{"1.23.x", 0, 0, 0, true},
-		{"invalid", 0, 0, 0, true},
+		{"1.23.0", "1.23", false},
+		{"1.23.5", "1.23", false},
+		{"1.19.13", "1.19", false},
+		{"2.0.1", "2.0", false},
+		{"1", "", true},
+		{"invalid", "", true},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.version, func(t *testing.T) {
-			major, minor, patch, err := parseVersion(tt.version)
+			got, err := getMinorVersion(tt.version)
 			if tt.wantErr {
 				if err == nil {
 					t.Errorf("Expected error for version %s", tt.version)
@@ -113,8 +165,8 @@ func TestParseVersion(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Unexpected error: %v", err)
 			}
-			if major != tt.major || minor != tt.minor || patch != tt.patch {
-				t.Errorf("Expected %d.%d.%d, got %d.%d.%d", tt.major, tt.minor, tt.patch, major, minor, patch)
+			if got != tt.want {
+				t.Errorf("Expected %s, got %s", tt.want, got)
 			}
 		})
 	}

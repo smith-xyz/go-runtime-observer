@@ -1,0 +1,74 @@
+name: Docker Build and Publish
+
+on:
+    push:
+        branches:
+            - main
+        tags:
+            - "v*.*.*"
+
+env:
+    REGISTRY: ghcr.io
+    IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+    build-and-push:
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            packages: write
+
+        strategy:
+            matrix:
+                go-version: ["1.19", "1.20", "1.21", "1.22", "1.23", "1.24"]
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - name: Set up Docker Buildx
+              uses: docker/setup-buildx-action@v3
+
+            - name: Log in to GitHub Container Registry
+              uses: docker/login-action@v3
+              with:
+                  registry: ${{ env.REGISTRY }}
+                  username: ${{ github.actor }}
+                  password: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Extract framework version
+              id: framework-version
+              run: |
+                  if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+                    VERSION=${GITHUB_REF#refs/tags/}
+                  else
+                    VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "dev")
+                  fi
+                  echo "version=$VERSION" >> $GITHUB_OUTPUT
+                  echo "Framework version: $VERSION"
+
+            - name: Generate Docker metadata
+              id: meta
+              uses: docker/metadata-action@v5
+              with:
+                  images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+                  tags: |
+                      type=raw,value=go${{ matrix.go-version }}-${{ steps.framework-version.outputs.version }}
+                      type=raw,value=go${{ matrix.go-version }},enable=${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/') }}
+                      type=raw,value=${{ steps.framework-version.outputs.version }},enable=${{ matrix.go-version == '1.24' && startsWith(github.ref, 'refs/tags/') }}
+                      type=raw,value=latest,enable=${{ matrix.go-version == '1.24' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')) }}
+
+            - name: Build and push Docker image
+              uses: docker/build-push-action@v5
+              with:
+                  context: .
+                  file: ./build/Dockerfile
+                  push: true
+                  tags: ${{ steps.meta.outputs.tags }}
+                  labels: ${{ steps.meta.outputs.labels }}
+                  build-args: |
+                      GO_VERSION=${{ matrix.go-version }}
+                  cache-from: type=gha
+                  cache-to: type=gha,mode=max

@@ -2,13 +2,22 @@
 	dev-setup dev-local-instrument dev-local-build dev-local-test \
 	dev-clean-install-instrumented-go dev-update-example-gomod \
 	docker-build dev-docker-run dev-docker-shell docker-clean \
-	vendor-deps test test-verbose test-coverage test-coverage-html \
+	docker-login-ghcr docker-tag-ghcr docker-push-ghcr \
+	vendor-deps setup-hooks test test-verbose test-coverage test-coverage-html \
 	lint fmt ci
 
 GO_VERSION ?= 1.23.0
+GO_MOD_VERSION := $(shell \
+	if echo "$(GO_VERSION)" | grep -qE '^1\.(19|20)'; then \
+		echo "$(GO_VERSION)" | grep -oE '^[0-9]+\.[0-9]+'; \
+	else \
+		echo "$(GO_VERSION)"; \
+	fi)
 GO_SRC_DIR := .dev-go-source/$(GO_VERSION)
 BUILD_CMD  := $(GO_SRC_DIR)/go/bin/go build -C examples/app -a -o $(PWD)/examples/app/example-app .
 DOCKER_ENV := -e GO_INSTRUMENT_UNSAFE=false -e GO_INSTRUMENT_REFLECT=true
+GITHUB_USERNAME ?= smith-xyz
+GHCR_IMAGE := ghcr.io/$(GITHUB_USERNAME)/go-runtime-observer
 
 all: docker-build
 
@@ -31,6 +40,9 @@ help:
 	@echo "  make docker-build                    Build instrumented Go container image"
 	@echo "  make dev-docker-run                  Build and run example with Docker"
 	@echo "  make dev-docker-shell                Interactive shell with Docker"
+	@echo "  make docker-login-ghcr               Login to GitHub Container Registry"
+	@echo "  make docker-tag-ghcr                 Tag local image for GHCR"
+	@echo "  make docker-push-ghcr                Push image to GHCR"
 	@echo ""
 	@echo "Testing:"
 	@echo "  make test                            Run all unit tests"
@@ -131,11 +143,15 @@ dev-docker-shell: docker-build
 
 ##@ Utilities
 
+setup-hooks:
+	@git config core.hooksPath .githooks
+	@echo "✓ Git hooks configured successfully!"
+
 vendor-deps: dev-update-example-gomod
 	@cd examples/app && go mod vendor
 
 dev-update-example-gomod:
-	@sed "s/{{GO_VERSION}}/$(GO_VERSION)/" examples/app/go.mod.template > examples/app/go.mod
+	@sed "s/{{GO_VERSION}}/$(GO_MOD_VERSION)/" examples/app/go.mod.template > examples/app/go.mod
 
 ##@ Testing
 
@@ -193,3 +209,29 @@ clean-all: clean
 docker-clean:
 	@rm -f examples/app/example-app examples/app/docker-instrumentation.log
 	@docker rmi instrumented-go:$(GO_VERSION) 2>/dev/null || true
+
+##@ GitHub Container Registry
+
+docker-login-ghcr:
+	@echo "Logging in to GitHub Container Registry..."
+	@if [ -z "$$GITHUB_TOKEN" ]; then \
+		echo "Error: GITHUB_TOKEN environment variable not set"; \
+		echo "Create a token at: https://github.com/settings/tokens"; \
+		echo "Then run: export GITHUB_TOKEN=your_token"; \
+		exit 1; \
+	fi
+	@echo "$$GITHUB_TOKEN" | docker login ghcr.io -u $(GITHUB_USERNAME) --password-stdin
+
+docker-tag-ghcr:
+	@echo "Tagging image for GHCR..."
+	docker tag instrumented-go:$(GO_VERSION) $(GHCR_IMAGE):go$(GO_VERSION)
+	docker tag instrumented-go:$(GO_VERSION) $(GHCR_IMAGE):latest
+
+docker-push-ghcr: docker-tag-ghcr
+	@echo "Pushing image to GHCR..."
+	docker push $(GHCR_IMAGE):go$(GO_VERSION)
+	docker push $(GHCR_IMAGE):latest
+	@echo ""
+	@echo "Successfully pushed to:"
+	@echo "  $(GHCR_IMAGE):go$(GO_VERSION)"
+	@echo "  $(GHCR_IMAGE):latest"

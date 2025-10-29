@@ -6,8 +6,9 @@ import (
 
 func GetConfig() config.VersionConfig {
 	return config.VersionConfig{
-		Go:    "1.20",
-		Notes: "Initial stable implementation - pkg.go with Happy: label and goFilesPackage",
+		Go:          "1.20",
+		BaseVersion: "1.20.0",
+		Notes:       "Base config for Go 1.20.x - works for most patches",
 		Injections: []config.InjectionConfig{
 			{
 				Name:        "dependency",
@@ -49,6 +50,13 @@ func GetConfig() config.VersionConfig {
 				Description: "Disable VCS stamping by default to support temp directory instrumentation",
 				Find:        `BuildBuildvcs          = "auto"`,
 				Replace:     `BuildBuildvcs          = "false"`,
+			},
+		},
+		Overrides: map[string]config.VersionOverride{
+			"1.20.14": {
+				Injections: []config.InjectionOverride{
+					{Name: "command_line", Line: 3131},
+				},
 			},
 		},
 	}

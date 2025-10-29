@@ -2,6 +2,14 @@
 
 Log what your Go code actually does at runtime - including calls to `reflect`, `unsafe`, and other standard library operations.
 
+<p align="center">
+  <img src="./docs/images/project-gopher-mascot.png" alt="Project Banner" width="800">
+</p>
+
+<p align="center">
+  <small><i>Disclaimer: I'm a developer, not a graphic designer. This gopher was created in collaboration with <a href="https://gemini.google.com/">Google's Gemini</a>. Contributions from actual artists are cheerfully welcome!</i></small>
+</p>
+
 ## What It Does
 
 Instruments a Go toolchain to capture runtime behavior. When you build with an instrumented Go, it logs operations like:
@@ -49,7 +57,82 @@ No changes to your code or build process required.
 
 ## Usage
 
-### Docker (Recommended)
+### Pre-built Docker Images
+
+Pre-built images are available on GitHub Container Registry:
+
+```bash
+# Pull specific framework version with Go 1.24.x
+docker pull ghcr.io/smith-xyz/go-runtime-observer:go1.24-v1.0.0
+
+# Pull latest framework for Go 1.24.x
+docker pull ghcr.io/smith-xyz/go-runtime-observer:go1.24
+
+# Pull latest everything
+docker pull ghcr.io/smith-xyz/go-runtime-observer:latest
+```
+
+**Available tags:**
+
+- `go1.19`, `go1.20`, `go1.21`, `go1.22`, `go1.23`, `go1.24` - Latest framework for each Go minor version
+- `go<version>-v<framework>` - Specific framework version (e.g., `go1.24-v1.0.0`)
+- `latest` - Latest Go version with latest framework
+- `v<framework>` - Specific framework version with latest Go
+
+**Version Strategy**: Published images use the latest patch version available for each minor release at build time. For example, `go1.24-v1.0.0` might contain Go 1.24.9 if that was the latest when built.
+
+The instrumentation framework has built-in version fallback logic, so specific patches (like 1.24.4) will automatically use the closest minor version config (1.24.x).
+
+Browse all available versions: https://github.com/smith-xyz/go-runtime-observer/pkgs/container/go-runtime-observer
+
+**Using pre-built images:**
+
+```bash
+# Use it to build your app
+docker run --rm -v $(pwd):/work ghcr.io/smith-xyz/go-runtime-observer:go1.24 build -o myapp .
+
+# Run with logging enabled
+INSTRUMENTATION_LOG_PATH=./runtime.log ./myapp
+
+# View what happened
+cat runtime.log
+```
+
+**Upgrade paths:**
+
+```dockerfile
+# Upgrade Go, keep framework stable
+FROM ghcr.io/shaunlsmith/go-runtime-observer:go1.23-v1.0.0
+# Upgrade to:
+FROM ghcr.io/shaunlsmith/go-runtime-observer:go1.24-v1.0.0
+
+# Upgrade framework, keep Go stable
+FROM ghcr.io/shaunlsmith/go-runtime-observer:go1.24-v1.0.0
+# Upgrade to:
+FROM ghcr.io/shaunlsmith/go-runtime-observer:go1.24-v1.1.0
+
+# Rollback framework
+FROM ghcr.io/shaunlsmith/go-runtime-observer:go1.24-v1.2.0  # Has issues
+# Rollback to:
+FROM ghcr.io/shaunlsmith/go-runtime-observer:go1.24-v1.1.0  # Stable
+```
+
+**Need a specific patch version?**
+
+If you require a specific Go patch (e.g., Go 1.24.5):
+
+**Option 1: Build locally**
+
+```bash
+git clone https://github.com/shaunlsmith/go-runtime-observer
+cd go-runtime-observer
+make docker-build GO_VERSION=1.24.5
+```
+
+**Option 2: Request an image**
+Open an issue and we'll add it to the build matrix if there's sufficient demand.
+
+### Docker (Build Your Own)
 
 Build once, use for any project:
 
@@ -108,18 +191,19 @@ INSTRUMENTATION_LOG_PATH=/path/to/log
 
 ## Supported Go Versions
 
-| Go Version | Status | Notes                       |
-| ---------- | ------ | --------------------------- |
-| 1.24.x     | Tested |                             |
-| 1.23.x     | Tested | Primary development version |
-| 1.22.x     | Tested |                             |
-| 1.21.x     | Tested |                             |
-| 1.20.x     | Tested |                             |
-| 1.19.x     | Tested | Minimum supported version   |
+| Go Version | Status      | Latest Tested | Docker Image | Notes                  |
+| ---------- | ----------- | ------------- | ------------ | ---------------------- |
+| 1.24.x     | Supported   | 1.24.9        | Yes          | Latest stable          |
+| 1.23.x     | Supported   | 1.23.12       | Yes          |                        |
+| 1.22.x     | Supported   | 1.22.12       | Yes          |                        |
+| 1.21.x     | Supported   | 1.21.13       | Yes          |                        |
+| 1.20.x     | Supported   | 1.20.14       | Yes          |                        |
+| 1.19.x     | Supported   | 1.19.13       | Yes          |                        |
+| < 1.19     | Unsupported | -             | No           | Deprecated Go versions |
 
-**Version Fallback**: Patch versions automatically use the base config (e.g., `1.23.5` uses `1.23.0` config). Different minor versions (1.20, 1.21, etc.) require separate configs.
+**Version Fallback**: Patch versions within the same minor version family (e.g., 1.23.1, 1.23.5) automatically use the base configuration for that minor version. Override configurations are added only when Go's internal structure changes between patches.
 
-**Note**: Go 1.19-1.20 on macOS may have compatibility issues. Use Docker for these versions.
+**macOS Compatibility**: Go 1.19-1.20 may encounter `dyld` compatibility issues on macOS. For local development on macOS with these versions, use Docker. Go 1.21+ works natively on all platforms.
 
 ## Adding New Functions to Instrument
 

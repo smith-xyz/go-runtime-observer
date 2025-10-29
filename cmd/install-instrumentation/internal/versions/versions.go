@@ -2,7 +2,6 @@ package versions
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/smith-xyz/go-runtime-observer/cmd/install-instrumentation/internal/versions/config"
@@ -14,90 +13,75 @@ import (
 	"github.com/smith-xyz/go-runtime-observer/cmd/install-instrumentation/internal/versions/v1_24"
 )
 
-// SupportedVersions maps Go version strings to their instrumentation configurations.
+// SupportedVersions maps Go minor versions (e.g., "1.23") to their base instrumentation configurations.
 // Each version's config is defined in a separate versions/vX_Y/ directory for maintainability.
+// Patch-specific overrides are defined within each config's Overrides map.
 // To add a new Go version:
 //  1. Create versions/vX_Y/config.go with GetConfig() function
 //  2. Import the package here
-//  3. Add the version to this map
+//  3. Add the minor version to this map
 var SupportedVersions = map[string]config.VersionConfig{
-	"1.19":   v1_19.GetConfig(),
-	"1.20":   v1_20.GetConfig(),
-	"1.21.0": v1_21.GetConfig(),
-	"1.22.0": v1_22.GetConfig(),
-	"1.23.0": v1_23.GetConfig(),
-	"1.24.0": v1_24.GetConfig(),
+	"1.19": v1_19.GetConfig(),
+	"1.20": v1_20.GetConfig(),
+	"1.21": v1_21.GetConfig(),
+	"1.22": v1_22.GetConfig(),
+	"1.23": v1_23.GetConfig(),
+	"1.24": v1_24.GetConfig(),
 }
 
 func GetVersionConfig(version string) (*config.VersionConfig, error) {
-	if cfg, exists := SupportedVersions[version]; exists {
-		return &cfg, nil
+	minorVersion, err := getMinorVersion(version)
+	if err != nil {
+		return nil, err
 	}
 
-	bestMatch, err := findBestMatch(version)
-	if err != nil {
+	baseConfig, exists := SupportedVersions[minorVersion]
+	if !exists {
 		return nil, &VersionNotFoundError{
 			Version:   version,
-			BestMatch: bestMatch,
+			BestMatch: "",
 		}
 	}
 
-	cfg := SupportedVersions[bestMatch]
-	return &cfg, nil
+	finalConfig := applyOverrides(baseConfig, version)
+	return &finalConfig, nil
 }
 
-func findBestMatch(targetVersion string) (string, error) {
-	major, minor, patch, err := parseVersion(targetVersion)
-	if err != nil {
-		return "", err
+func getMinorVersion(version string) (string, error) {
+	parts := strings.Split(version, ".")
+	if len(parts) < 2 {
+		return "", fmt.Errorf("invalid version format: %s (expected at least major.minor)", version)
+	}
+	return fmt.Sprintf("%s.%s", parts[0], parts[1]), nil
+}
+
+func applyOverrides(baseConfig config.VersionConfig, targetVersion string) config.VersionConfig {
+	override, exists := baseConfig.Overrides[targetVersion]
+	if !exists {
+		return baseConfig
 	}
 
-	var bestMatch string
-	var bestPatch int = -1
+	result := baseConfig
 
-	for supportedVersion := range SupportedVersions {
-		sMajor, sMinor, sPatch, err := parseVersion(supportedVersion)
-		if err != nil {
-			continue
-		}
+	if len(override.Injections) > 0 {
+		result.Injections = make([]config.InjectionConfig, len(baseConfig.Injections))
+		copy(result.Injections, baseConfig.Injections)
 
-		if sMajor == major && sMinor == minor && sPatch <= patch {
-			if sPatch > bestPatch {
-				bestPatch = sPatch
-				bestMatch = supportedVersion
+		for _, overrideInj := range override.Injections {
+			for i := range result.Injections {
+				if result.Injections[i].Name == overrideInj.Name {
+					result.Injections[i].Line = overrideInj.Line
+					break
+				}
 			}
 		}
 	}
 
-	if bestMatch == "" {
-		return "", fmt.Errorf("no compatible version found for %s (major.minor %d.%d)", targetVersion, major, minor)
+	if len(override.Patches) > 0 {
+		result.Patches = override.Patches
 	}
 
-	return bestMatch, nil
-}
-
-func parseVersion(version string) (major, minor, patch int, err error) {
-	parts := strings.Split(version, ".")
-	if len(parts) != 3 {
-		return 0, 0, 0, fmt.Errorf("invalid version format: %s (expected major.minor.patch)", version)
-	}
-
-	major, err = strconv.Atoi(parts[0])
-	if err != nil {
-		return 0, 0, 0, fmt.Errorf("invalid major version: %s", parts[0])
-	}
-
-	minor, err = strconv.Atoi(parts[1])
-	if err != nil {
-		return 0, 0, 0, fmt.Errorf("invalid minor version: %s", parts[1])
-	}
-
-	patch, err = strconv.Atoi(parts[2])
-	if err != nil {
-		return 0, 0, 0, fmt.Errorf("invalid patch version: %s", parts[2])
-	}
-
-	return major, minor, patch, nil
+	return result
 }
 
 func ListSupportedVersions() []string {

@@ -1,9 +1,10 @@
 #!/bin/bash
 set -euo pipefail
 
-SUPPORTED_VERSIONS=("1.19" "1.20" "1.21.0" "1.22.0" "1.23.0" "1.24.0")
-TEST_SPECIFIC_VERSION="${1:-}"
+GO_MINOR_VERSIONS=("1.19" "1.20" "1.21" "1.22" "1.23" "1.24")
+TEST_SPECIFIC_VERSION="${TEST_SPECIFIC_VERSION:-${1:-}}"
 VERBOSE="${VERBOSE:-false}"
+AUTO_FETCH_LATEST="${AUTO_FETCH_LATEST:-false}" # requires jq and curl
 FAILED_VERSIONS=()
 PASSED_VERSIONS=()
 
@@ -94,6 +95,28 @@ main() {
         echo "Verbose mode enabled"
     fi
     echo ""
+
+
+    if [ "$AUTO_FETCH_LATEST" = "true" ]; then
+        echo "Auto-fetching latest patch versions..."
+        SUPPORTED_VERSIONS=()
+        
+        version_list=$(curl -s 'https://go.dev/dl/?mode=json&include=all' | jq -r '.[].version')
+        
+        for minor in "${GO_MINOR_VERSIONS[@]}"; do
+            latest=$(echo "$version_list" | grep "^go${minor}" | head -1 | sed 's/^go//' || true)
+            
+            if [ -n "$latest" ]; then
+                SUPPORTED_VERSIONS+=("$latest")
+                echo "  ✓ Go $minor -> $latest"
+            else
+                echo "  ✗ Warning: Could not find latest for Go $minor, using default"
+                SUPPORTED_VERSIONS+=("$minor")
+            fi
+        done
+    else
+        SUPPORTED_VERSIONS=("1.19" "1.20" "1.21.0" "1.22.0" "1.23.0" "1.24.0")
+    fi
     
     local VERSIONS_TO_TEST=()
     

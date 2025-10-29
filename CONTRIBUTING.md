@@ -1,5 +1,21 @@
 # Contributing
 
+## First-Time Setup
+
+Before making changes, configure Git pre-commit hooks:
+
+```bash
+make setup-hooks
+```
+
+This automatically runs formatting, linting, and tests before each commit, catching issues early and ensuring code quality. The CI will verify hooks are configured when you open a PR.
+
+**To skip hooks temporarily (not recommended):**
+
+```bash
+git commit --no-verify
+```
+
 ## Development Workflow
 
 ### Docker (Recommended)
@@ -69,32 +85,33 @@ Go compiler uses instrumented temp files
 
 ## Adding Go Version Support
 
-When a new Go version is released or line numbers shift:
+When a new Go minor version is released:
 
 1. Create version config:
 
 ```bash
-# Create new file
-touch cmd/install-instrumentation/internal/versions/v1_24/1_24_0.go
+# Create new file for minor version
+touch cmd/install-instrumentation/internal/versions/v1_25/config.go
 ```
 
-2. Define injection points:
+2. Define base configuration for the minor version:
 
 ```go
-package v1_24
+package v1_25
 
 import "github.com/smith-xyz/go-runtime-observer/cmd/install-instrumentation/internal/versions/config"
 
 func GetConfig() config.VersionConfig {
     return config.VersionConfig{
-        Go:    "1.24.0",
-        Notes: "Initial 1.24.0 support - verify pkg.go structure",
+        Go:          "1.25",
+        BaseVersion: "1.25.0",
+        Notes:       "Base config for Go 1.25.x - works for most patches",
         Injections: []config.InjectionConfig{
             {
                 Name:        "dependency",
                 TargetFile:  "src/cmd/go/internal/load/pkg.go",
                 Line:        905,  // Update to actual line number
-                Description: "Inject after Happy: label",
+                Description: "Inject after Happy: label in dependency resolution path",
                 Instrument: config.InstrumentCall{
                     Function: "InstrumentPackageFiles",
                     Args:     []string{"data.p.GoFiles", "data.p.Dir"},
@@ -106,17 +123,33 @@ func GetConfig() config.VersionConfig {
                     Args:     []string{"data.p.Dir", "buildMode"},
                 },
             },
-            // Add command_line injection point
+            {
+                Name:        "command_line",
+                TargetFile:  "src/cmd/go/internal/load/pkg.go",
+                Line:        3190,  // Update to actual line number
+                Description: "Inject after ImportDir call in goFilesPackage for command-line files",
+                Instrument: config.InstrumentCall{
+                    Function: "InstrumentPackageFiles",
+                    Args:     []string{"bp.GoFiles", "dir"},
+                    Result:   []string{"bp.GoFiles", "dir"},
+                },
+                Reparse: config.ReparseCall{
+                    Result:   []string{"bp", "err"},
+                    Function: "ctxt.ImportDir",
+                    Args:     []string{"dir", "0"},
+                },
+            },
         },
         Patches: []config.PatchConfig{
             {
                 Name:        "buildvcs_default",
                 TargetFile:  "src/cmd/go/internal/cfg/cfg.go",
-                Description: "Disable VCS stamping",
+                Description: "Disable VCS stamping by default to support temp directory instrumentation",
                 Find:        `BuildBuildvcs      = "auto"`,
                 Replace:     `BuildBuildvcs      = "false"`,
             },
         },
+        Overrides: map[string]config.VersionOverride{},
     }
 }
 ```
@@ -125,19 +158,40 @@ func GetConfig() config.VersionConfig {
 
 ```go
 // cmd/install-instrumentation/internal/versions/versions.go
-import "github.com/smith-xyz/go-runtime-observer/cmd/install-instrumentation/internal/versions/v1_24"
+import "github.com/smith-xyz/go-runtime-observer/cmd/install-instrumentation/internal/versions/v1_25"
 
 var SupportedVersions = map[string]config.VersionConfig{
-    "1.23.0": v1_23.GetConfig(),
-    "1.24.0": v1_24.GetConfig(),
+    "1.24": v1_24.GetConfig(),
+    "1.25": v1_25.GetConfig(),
 }
 ```
 
 4. Test:
 
 ```bash
-make docker-build GO_VERSION=1.24.0
-make dev-docker-run GO_VERSION=1.24.0
+make docker-build GO_VERSION=1.25.0
+make dev-docker-run GO_VERSION=1.25.0
+```
+
+### Adding Patch-Specific Overrides
+
+When a patch version shifts line numbers (e.g., Go 1.25.3 moves code):
+
+```go
+Overrides: map[string]config.VersionOverride{
+    "1.25.3": {
+        Injections: []config.InjectionOverride{
+            {Name: "dependency", Line: 907},    // Only specify what changed
+            {Name: "command_line", Line: 3195}, // Other fields come from base
+        },
+    },
+},
+```
+
+Test the specific patch version:
+
+```bash
+TEST_SPECIFIC_VERSION=1.25.3 make test-installation-compatibility
 ```
 
 ### Finding Injection Points

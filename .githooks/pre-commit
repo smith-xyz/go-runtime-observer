@@ -1,0 +1,29 @@
+#!/bin/bash
+set -e
+
+echo "Running pre-commit checks..."
+
+echo "  → Formatting code..."
+make fmt
+
+if [ -n "$(git diff --name-only)" ]; then
+    echo "ERROR: Code formatting changes detected. Files have been formatted."
+    echo "Please review the changes and commit again."
+    git diff --name-only
+    exit 1
+fi
+
+echo "  → Running linter..."
+if ! make lint; then
+    echo "ERROR: Linting failed. Please fix the issues above."
+    exit 1
+fi
+
+echo "  → Running tests..."
+if ! make test; then
+    echo "ERROR: Tests failed. Please fix the failing tests."
+    exit 1
+fi
+
+echo "✓ All pre-commit checks passed!"
+

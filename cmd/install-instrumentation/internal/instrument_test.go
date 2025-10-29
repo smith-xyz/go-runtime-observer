@@ -13,9 +13,10 @@ import (
 const testGoVersion = "test-1.0.0"
 
 func init() {
-	versions.SupportedVersions[testGoVersion] = config.VersionConfig{
-		Go:    testGoVersion,
-		Notes: "Test version",
+	versions.SupportedVersions["test-1.0"] = config.VersionConfig{
+		Go:          "test-1.0",
+		BaseVersion: testGoVersion,
+		Notes:       "Test version",
 		Injections: []config.InjectionConfig{
 			{
 				Name:        "dependency",
@@ -50,6 +51,7 @@ func init() {
 				},
 			},
 		},
+		Overrides: map[string]config.VersionOverride{},
 	}
 }
 

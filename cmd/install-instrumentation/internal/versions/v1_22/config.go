@@ -7,7 +7,7 @@ import (
 func GetConfig() config.VersionConfig {
 	return config.VersionConfig{
 		Go:    "1.22.0",
-		Notes: "Initial stable implementation - pkg.go with Happy: label and goFilesPackage",
+		Notes: "Base config for Go 22.x - pkg.go with Happy: label and goFilesPackage",
 		Injections: []config.InjectionConfig{
 			{
 				Name:        "dependency",
@@ -51,5 +51,6 @@ func GetConfig() config.VersionConfig {
 				Replace:     `BuildBuildvcs          = "false"`,
 			},
 		},
+		Overrides: map[string]config.VersionOverride{},
 	}
 }
