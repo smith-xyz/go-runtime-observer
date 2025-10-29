@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-SUPPORTED_VERSIONS=("1.19" "1.20" "1.21.0" "1.23.0")
+SUPPORTED_VERSIONS=("1.19" "1.20" "1.21.0" "1.22.0" "1.23.0")
 TEST_SPECIFIC_VERSION="${1:-}"
 VERBOSE="${VERBOSE:-false}"
 FAILED_VERSIONS=()
