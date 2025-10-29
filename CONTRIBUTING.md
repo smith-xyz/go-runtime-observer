@@ -449,6 +449,52 @@ cat /work/test.log
 4. Run `make clean && make docker-build` successfully
 5. Include example output if adding new instrumented functions
 
+## Release Process
+
+### Publishing Docker Images
+
+Docker images are automatically built and published to GHCR when you push tags.
+
+**1. Update Go versions** (if needed):
+
+Edit `.github/go-versions.json`:
+
+```json
+{
+  "versions": ["1.19.13", "1.20.14", "1.21.13", "1.22.12", "1.23.12", "1.24.9"]
+}
+```
+
+**2. Create and push a tag**:
+
+```bash
+# Tag the release
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+**3. GitHub Actions builds images**:
+
+For each Go version in `.github/go-versions.json`, it creates:
+
+- `go1.24.9-v1.0.0` - Specific Go + framework version
+- `go1.24.9` - Specific Go, latest framework (on main)
+- `v1.0.0` - Latest Go (1.24.9), specific framework (only for newest Go)
+- `latest` - Latest Go + framework (only for newest Go)
+
+**4. Verify on GHCR**:
+
+Check https://github.com/smith-xyz/go-runtime-observer/pkgs/container/go-runtime-observer
+
+### Version Bump Checklist
+
+- [ ] Update `go-versions.json` with tested Go patch versions
+- [ ] Test locally: `TEST_SPECIFIC_VERSION=1.24.9 make test-installation-compatibility`
+- [ ] Update README if adding/removing Go version support
+- [ ] Create git tag following semver (v1.0.0, v1.1.0, v2.0.0)
+- [ ] Push tag to trigger Docker build workflow
+- [ ] Verify images built successfully in GitHub Actions
+
 ## Questions?
 
 Open an issue for:

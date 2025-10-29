@@ -79,17 +79,22 @@ docker pull ghcr.io/smith-xyz/go-runtime-observer:latest
 - `latest` - Latest Go version with latest framework
 - `v<framework>` - Specific framework version with latest Go
 
-**Version Strategy**: Published images use the latest patch version available for each minor release at build time. For example, `go1.24-v1.0.0` might contain Go 1.24.9 if that was the latest when built.
+**Version Strategy**: Published images use tested, specific Go patch versions (e.g., `go1.24.9-v1.0.0`). Tags include:
 
-The instrumentation framework has built-in version fallback logic, so specific patches (like 1.24.4) will automatically use the closest minor version config (1.24.x).
+- Full precision: `go1.24.9-v1.0.0` (Go patch + framework version)
+- Go version: `go1.24.9` (specific Go, latest framework on main branch)
+- Framework version: `v1.0.0` (latest Go, specific framework - only for newest Go)
+- Latest: `latest` (newest Go + latest framework on main branch)
+
+The instrumentation framework has built-in version fallback logic, so any patch version within a minor family (e.g., 1.24.x) uses the same base configuration with optional overrides for specific patches.
 
 Browse all available versions: https://github.com/smith-xyz/go-runtime-observer/pkgs/container/go-runtime-observer
 
 **Using pre-built images:**
 
 ```bash
-# Use it to build your app
-docker run --rm -v $(pwd):/work ghcr.io/smith-xyz/go-runtime-observer:go1.24 build -o myapp .
+# Use it to build your app (specific Go version)
+docker run --rm -v $(pwd):/work ghcr.io/smith-xyz/go-runtime-observer:go1.24.9 build -o myapp .
 
 # Run with logging enabled
 INSTRUMENTATION_LOG_PATH=./runtime.log ./myapp
@@ -102,19 +107,19 @@ cat runtime.log
 
 ```dockerfile
 # Upgrade Go, keep framework stable
-FROM ghcr.io/shaunlsmith/go-runtime-observer:go1.23-v1.0.0
+FROM ghcr.io/smith-xyz/go-runtime-observer:go1.23.12-v1.0.0
 # Upgrade to:
-FROM ghcr.io/shaunlsmith/go-runtime-observer:go1.24-v1.0.0
+FROM ghcr.io/smith-xyz/go-runtime-observer:go1.24.9-v1.0.0
 
 # Upgrade framework, keep Go stable
-FROM ghcr.io/shaunlsmith/go-runtime-observer:go1.24-v1.0.0
+FROM ghcr.io/smith-xyz/go-runtime-observer:go1.24.9-v1.0.0
 # Upgrade to:
-FROM ghcr.io/shaunlsmith/go-runtime-observer:go1.24-v1.1.0
+FROM ghcr.io/smith-xyz/go-runtime-observer:go1.24.9-v1.1.0
 
 # Rollback framework
-FROM ghcr.io/shaunlsmith/go-runtime-observer:go1.24-v1.2.0  # Has issues
+FROM ghcr.io/smith-xyz/go-runtime-observer:go1.24.9-v1.2.0  # Has issues
 # Rollback to:
-FROM ghcr.io/shaunlsmith/go-runtime-observer:go1.24-v1.1.0  # Stable
+FROM ghcr.io/smith-xyz/go-runtime-observer:go1.24.9-v1.1.0  # Stable
 ```
 
 **Need a specific patch version?**
