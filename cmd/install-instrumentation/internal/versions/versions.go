@@ -11,6 +11,7 @@ import (
 	"github.com/smith-xyz/go-runtime-observer/cmd/install-instrumentation/internal/versions/v1_21"
 	"github.com/smith-xyz/go-runtime-observer/cmd/install-instrumentation/internal/versions/v1_22"
 	"github.com/smith-xyz/go-runtime-observer/cmd/install-instrumentation/internal/versions/v1_23"
+	"github.com/smith-xyz/go-runtime-observer/cmd/install-instrumentation/internal/versions/v1_24"
 )
 
 // SupportedVersions maps Go version strings to their instrumentation configurations.
@@ -25,6 +26,7 @@ var SupportedVersions = map[string]config.VersionConfig{
 	"1.21.0": v1_21.GetConfig(),
 	"1.22.0": v1_22.GetConfig(),
 	"1.23.0": v1_23.GetConfig(),
+	"1.24.0": v1_24.GetConfig(),
 }
 
 func GetVersionConfig(version string) (*config.VersionConfig, error) {

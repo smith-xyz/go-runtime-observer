@@ -110,6 +110,7 @@ INSTRUMENTATION_LOG_PATH=/path/to/log
 
 | Go Version | Status | Notes                       |
 | ---------- | ------ | --------------------------- |
+| 1.24.x     | Tested |                             |
 | 1.23.x     | Tested | Primary development version |
 | 1.22.x     | Tested |                             |
 | 1.21.x     | Tested |                             |
