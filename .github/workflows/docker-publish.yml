@@ -70,16 +70,17 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=go${{ matrix.go-version }}-${{ steps.framework-version.outputs.version }}
-            type=raw,value=go${{ matrix.go-version }},enable=${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/') }}
+            type=raw,value=go${{ matrix.go-version }}-${{ steps.framework-version.outputs.version }},enable=${{ startsWith(github.ref, 'refs/tags/') }}
+            type=raw,value=go${{ matrix.go-version }}-edge,enable=${{ github.ref == 'refs/heads/main' }}
             type=raw,value=${{ steps.framework-version.outputs.version }},enable=${{ matrix.go-version == '1.24.9' && startsWith(github.ref, 'refs/tags/') }}
-            type=raw,value=latest,enable=${{ matrix.go-version == '1.24.9' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')) }}
+            type=raw,value=edge,enable=${{ matrix.go-version == '1.24.9' && github.ref == 'refs/heads/main' }}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./build/Dockerfile
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

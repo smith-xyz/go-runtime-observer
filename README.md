@@ -68,33 +68,35 @@ docker pull ghcr.io/smith-xyz/go-runtime-observer:go1.24-v1.0.0
 # Pull latest framework for Go 1.24.x
 docker pull ghcr.io/smith-xyz/go-runtime-observer:go1.24
 
-# Pull latest everything
-docker pull ghcr.io/smith-xyz/go-runtime-observer:latest
+# Pull latest development build
+docker pull ghcr.io/smith-xyz/go-runtime-observer:edge
+
+# Pull specific release (recommended)
+docker pull ghcr.io/smith-xyz/go-runtime-observer:go1.24.9-v1.0.0
 ```
 
 **Available tags:**
 
-- `go1.19`, `go1.20`, `go1.21`, `go1.22`, `go1.23`, `go1.24` - Latest framework for each Go minor version
-- `go<version>-v<framework>` - Specific framework version (e.g., `go1.24-v1.0.0`)
-- `latest` - Latest Go version with latest framework
-- `v<framework>` - Specific framework version with latest Go
+**Development builds (main branch):**
+- `go1.24.9-edge` - Specific Go with latest development code
+- `edge` - Latest Go with latest development code
 
-**Version Strategy**: Published images use tested, specific Go patch versions (e.g., `go1.24.9-v1.0.0`). Tags include:
+**Release builds (tagged versions):**
+- `go1.24.9-v1.0.0` - Specific Go + framework version (recommended for production)
+- `v1.0.0` - Latest Go with specific framework version
 
-- Full precision: `go1.24.9-v1.0.0` (Go patch + framework version)
-- Go version: `go1.24.9` (specific Go, latest framework on main branch)
-- Framework version: `v1.0.0` (latest Go, specific framework - only for newest Go)
-- Latest: `latest` (newest Go + latest framework on main branch)
-
-The instrumentation framework has built-in version fallback logic, so any patch version within a minor family (e.g., 1.24.x) uses the same base configuration with optional overrides for specific patches.
+**Version Strategy**: Images use tested, specific Go patch versions (not `latest` or minor versions). The framework has built-in version fallback, so any patch within a minor family (1.24.x) uses the same base config with optional patch-specific overrides.
 
 Browse all available versions: https://github.com/smith-xyz/go-runtime-observer/pkgs/container/go-runtime-observer
 
 **Using pre-built images:**
 
 ```bash
-# Use it to build your app (specific Go version)
-docker run --rm -v $(pwd):/work ghcr.io/smith-xyz/go-runtime-observer:go1.24.9 build -o myapp .
+# Use specific release to build your app (recommended)
+docker run --rm -v $(pwd):/work ghcr.io/smith-xyz/go-runtime-observer:go1.24.9-v1.0.0 build -o myapp .
+
+# Or use edge for testing latest features
+docker run --rm -v $(pwd):/work ghcr.io/smith-xyz/go-runtime-observer:edge build -o myapp .
 
 # Run with logging enabled
 INSTRUMENTATION_LOG_PATH=./runtime.log ./myapp

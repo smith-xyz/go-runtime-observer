@@ -477,14 +477,21 @@ git push origin v1.0.0
 
 For each Go version in `.github/go-versions.json`, it creates:
 
-- `go1.24.9-v1.0.0` - Specific Go + framework version
-- `go1.24.9` - Specific Go, latest framework (on main)
-- `v1.0.0` - Latest Go (1.24.9), specific framework (only for newest Go)
-- `latest` - Latest Go + framework (only for newest Go)
+- `go1.24.9-v1.0.0` - Specific Go + framework version (on tagged releases)
+- `go1.24.9-edge` - Specific Go with latest development (on main branch)
+- `v1.0.0` - Latest Go with specific framework (on tagged releases, only for newest Go)
+- `edge` - Latest Go with latest development (on main branch, only for newest Go)
 
 **4. Verify on GHCR**:
 
 Check https://github.com/smith-xyz/go-runtime-observer/pkgs/container/go-runtime-observer
+
+**Note on image visibility**: First-time pushes create private packages by default. To make them public:
+
+1. Go to the package page on GitHub
+2. Click "Package settings"
+3. Scroll to "Danger Zone"
+4. Click "Change visibility" → "Public"
 
 ### Version Bump Checklist
 
