@@ -449,6 +449,33 @@ cat /work/test.log
 4. Run `make clean && make docker-build` successfully
 5. Include example output if adding new instrumented functions
 
+### Merging Pull Requests
+
+PRs are required to be merged as squash commits. When merging PRs, maintain conventional commit format:
+
+**Option 1: Squash and Merge via GitHub UI**
+
+- Use GitHub's "Squash and merge" button (this is the only merge method available via GitHub UI)
+- Edit the commit message to follow conventional commits format
+- Example: `feat: add support for Go 1.24` or `fix(parser): correct version detection`
+- This creates a single conventional commit on `main`
+
+**Option 2: Merge Locally**
+
+If you need more control over the merge process:
+
+```bash
+# Fetch the PR branch
+git fetch origin pull/<PR_NUMBER>/head:pr-<PR_NUMBER>
+git checkout main
+git pull origin main
+
+# Squash merge with a conventional commit message
+git merge --squash pr-<PR_NUMBER>
+git commit -m "feat: add support for Go 1.24"
+git push origin main
+```
+
 ## Release Process
 
 ### Publishing Docker Images
