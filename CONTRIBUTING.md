@@ -344,6 +344,30 @@ cat examples/app/docker-instrumentation.log
 
 ## Debugging
 
+### Correlation Tracking
+
+The correlation tracking system bridges call graph gaps between `MethodByName` and `Call` operations. See `docs/correlation-algorithm.md` for algorithm details.
+
+**Enable debug logging:**
+
+```bash
+export INSTRUMENTATION_DEBUG_CORRELATION=true
+export INSTRUMENTATION_DEBUG_LOG_PATH=/path/to/correlation-debug.log
+```
+
+Debug logs show:
+
+- `RECORD`: Method name recorded with receiver pointer
+- `GET`: Correlation lookup attempts and results
+- Receiver pointer values used for matching
+
+**Example debug output:**
+
+```
+RECORD: methodValuePtr=1374390599712 methodName=Add baton=1374390599712 seq=1
+GET: baton=1374390599712 MATCH methodName=Add seq=1
+```
+
 ### Compare Original vs Instrumented
 
 ```bash
@@ -360,6 +384,7 @@ grep -A5 "preprocessor.InstrumentPackageFiles" .dev-go-source/1.23.0/go/src/cmd/
 # Run unit tests
 go test ./pkg/preprocessor/... -v
 go test ./cmd/install-instrumentation/internal/... -v
+go test ./pkg/instrumentation/instrumentlog/... -v
 ```
 
 ### Check Temp Directory Structure

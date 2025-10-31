@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/smith-xyz/go-runtime-observer/pkg/preprocessor/types"
 )
 
 func TestProcessFile_UnsafeImport(t *testing.T) {
@@ -32,7 +34,7 @@ func main() {
 
 	// Test with registry
 	testRegistry := &Registry{
-		Instrumentation: map[string]InstrumentedPackage{
+		Instrumentation: map[string]types.InstrumentedPackage{
 			"unsafe": {
 				Pkg:       "runtime_observe_instrumentation/unsafe",
 				Functions: []string{"Add"},
@@ -99,7 +101,7 @@ func main() {
 	tmpfile.Close()
 
 	testRegistry := &Registry{
-		Instrumentation: map[string]InstrumentedPackage{
+		Instrumentation: map[string]types.InstrumentedPackage{
 			"unsafe": {
 				Pkg:       "runtime_observe_instrumentation/unsafe",
 				Functions: []string{"Add"},
@@ -173,7 +175,7 @@ func main() {
 	tmpfile.Close()
 
 	testRegistry := &Registry{
-		Instrumentation: map[string]InstrumentedPackage{
+		Instrumentation: map[string]types.InstrumentedPackage{
 			"reflect": {
 				Pkg:       "runtime_observe_instrumentation/reflect",
 				Functions: []string{"ValueOf"},
@@ -314,7 +316,7 @@ func main() {
 
 	// Create test registry that doesn't include unsafe.Pointer
 	testRegistry := &Registry{
-		Instrumentation: map[string]InstrumentedPackage{
+		Instrumentation: map[string]types.InstrumentedPackage{
 			"unsafe": {
 				Pkg:       "runtime_observe_instrumentation/unsafe",
 				Functions: []string{"Add"}, // Only Add, not Pointer
@@ -374,7 +376,7 @@ func main() {
 	tmpfile.Close()
 
 	testRegistry := &Registry{
-		Instrumentation: map[string]InstrumentedPackage{
+		Instrumentation: map[string]types.InstrumentedPackage{
 			"reflect": {
 				Pkg:       "runtime_observe_instrumentation/reflect",
 				Functions: []string{"ValueOf"},
@@ -442,7 +444,7 @@ func main() {
 	tmpfile.Close()
 
 	testRegistry := &Registry{
-		Instrumentation: map[string]InstrumentedPackage{
+		Instrumentation: map[string]types.InstrumentedPackage{
 			"reflect": {
 				Pkg:       "runtime_observe_instrumentation/reflect",
 				Functions: []string{"ValueOf"},
@@ -599,15 +601,15 @@ func (v Value) Set(x Value) {
 
 	result := string(content)
 
-	if !strings.Contains(result, `instrumentlog.LogCall("reflect.ValueOf")`) {
+	if !strings.Contains(result, `instrumentlog.LogCall("reflect.ValueOf"`) {
 		t.Error("Expected ValueOf to be instrumented")
 	}
 
-	if !strings.Contains(result, `instrumentlog.LogCall("reflect.Value.Call")`) {
+	if !strings.Contains(result, `instrumentlog.LogCall("reflect.Value.Call"`) {
 		t.Error("Expected Call method to be instrumented")
 	}
 
-	if !strings.Contains(result, `instrumentlog.LogCall("reflect.Value.Set")`) {
+	if !strings.Contains(result, `instrumentlog.LogCall("reflect.Value.Set"`) {
 		t.Error("Expected Set method to be instrumented")
 	}
 

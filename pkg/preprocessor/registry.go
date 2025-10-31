@@ -2,6 +2,8 @@ package preprocessor
 
 import (
 	"strings"
+
+	"github.com/smith-xyz/go-runtime-observer/pkg/preprocessor/types"
 )
 
 const (
@@ -28,30 +30,14 @@ var DependencyDirPatterns = []string{
 	PkgModDirPattern,
 }
 
-type InstrumentedPackage struct {
-	Pkg       string   `json:"pkg"`
-	Functions []string `json:"functions"`
-}
-
-type StdlibMethodInstrumentation struct {
-	ReceiverType string
-	MethodNames  []string
-}
-
-type StdlibASTInstrumentation struct {
-	PackageName string
-	Functions   []string
-	Methods     []StdlibMethodInstrumentation
-}
-
 type Registry struct {
-	Instrumentation    map[string]InstrumentedPackage `json:"instrumentation"`
-	SafeStdlibPackages []string                       `json:"safe_stdlib_packages"`
-	StdlibAST          map[string]StdlibASTInstrumentation
+	Instrumentation    map[string]types.InstrumentedPackage `json:"instrumentation"`
+	SafeStdlibPackages []string                             `json:"safe_stdlib_packages"`
+	StdlibAST          map[string]types.StdlibASTInstrumentation
 }
 
 var DefaultRegistry = Registry{
-	Instrumentation: map[string]InstrumentedPackage{
+	Instrumentation: map[string]types.InstrumentedPackage{
 		"unsafe": {
 			Pkg:       "runtime_observe_instrumentation/unsafe",
 			Functions: []string{"Add", "Slice", "SliceData", "String", "StringData"},
@@ -60,7 +46,7 @@ var DefaultRegistry = Registry{
 	SafeStdlibPackages: []string{
 		"encoding/json",
 	},
-	StdlibAST: map[string]StdlibASTInstrumentation{
+	StdlibAST: map[string]types.StdlibASTInstrumentation{
 		"reflect": {
 			PackageName: "reflect",
 			Functions: []string{
@@ -74,7 +60,7 @@ var DefaultRegistry = Registry{
 				"MakeSlice",
 				"MakeChan",
 			},
-			Methods: []StdlibMethodInstrumentation{
+			Methods: []types.StdlibMethodInstrumentation{
 				{
 					ReceiverType: "Value",
 					MethodNames: []string{
@@ -88,6 +74,22 @@ var DefaultRegistry = Registry{
 						"SetFloat",
 						"SetBool",
 					},
+					// MethodByName and Method return reflect.Value instances that are later used in Call()
+					// We record correlations so we can connect MethodByName("GetName") -> Call() in logs
+					CorrelationRecordingMethods: []string{"MethodByName", "Method"},
+					// MethodByName takes a "name" parameter we want to record; Method takes an index from its return call
+					MethodIdentifierExtractors: map[string]string{
+						"MethodByName": "param:name",
+						"Method":       "call:0",
+					},
+					// MethodByName internally calls v.Method(index), so we check for "Method" in its return statements
+					// Method returns itself or a direct Value{}, so empty slice means check for same method name
+					ReturnExpressionMethods: map[string][]string{
+						"MethodByName": {"Method"},
+						"Method":       {},
+					},
+					// Call and CallSlice consume correlations recorded by MethodByName/Method
+					CorrelationLookupMethods: []string{"Call", "CallSlice"},
 				},
 			},
 		},
@@ -112,7 +114,7 @@ func (r *Registry) GetInstrumentedImportPath(stdlibPackage string) (string, bool
 	return "", false
 }
 
-func (r *Registry) GetStdlibASTInstrumentation(packageName string) (StdlibASTInstrumentation, bool) {
+func (r *Registry) GetStdlibASTInstrumentation(packageName string) (types.StdlibASTInstrumentation, bool) {
 	instr, ok := r.StdlibAST[packageName]
 	return instr, ok
 }

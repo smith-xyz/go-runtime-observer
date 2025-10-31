@@ -1,6 +1,6 @@
 .PHONY: all help clean clean-all \
 	dev-setup dev-local-instrument dev-local-build dev-local-test \
-	dev-clean-install-instrumented-go dev-update-example-gomod \
+	dev-clean-install-instrumented-go dev-update-example-gomod example-callgraph \
 	docker-build dev-docker-run dev-docker-shell docker-clean \
 	docker-login-ghcr docker-tag-ghcr docker-push-ghcr \
 	vendor-deps setup-hooks test test-verbose test-coverage test-coverage-html \
@@ -59,6 +59,7 @@ help:
 	@echo "Utilities:"
 	@echo "  make vendor-deps                     Vendor dependencies for example app"
 	@echo "  make dev-update-example-gomod        Update example app go.mod version"
+	@echo "  make example-callgraph               Generate call graph for example app"
 	@echo ""
 	@echo "Cleanup:"
 	@echo "  make clean                           Remove build artifacts"
@@ -99,7 +100,10 @@ dev-local-test: clean vendor-deps
 		GO_INSTRUMENT_UNSAFE=true \
 		GO_INSTRUMENT_REFLECT=true \
 		$(BUILD_CMD)
-	@INSTRUMENTATION_LOG_PATH=$(PWD)/examples/app/local-instrumentation.log ./examples/app/example-app
+	@INSTRUMENTATION_DEBUG_CORRELATION=true \
+		INSTRUMENTATION_DEBUG_LOG_PATH=$(PWD)/examples/app/correlation-debug.log \
+		INSTRUMENTATION_DEBUG_CORRELATION=true \
+		INSTRUMENTATION_LOG_PATH=$(PWD)/examples/app/local-instrumentation.log ./examples/app/example-app
 	@echo ""
 	@echo "Instrumentation log:"
 	@cat examples/app/local-instrumentation.log
@@ -153,6 +157,10 @@ vendor-deps: dev-update-example-gomod
 dev-update-example-gomod:
 	@sed "s/{{GO_VERSION}}/$(GO_MOD_VERSION)/" examples/app/go.mod.template > examples/app/go.mod
 
+example-callgraph:
+	@cd examples/app && callgraph -algo rta ./... > callgraph.txt
+	@echo "Call graph generated: examples/app/callgraph.txt"
+
 ##@ Testing
 
 COVERAGE_PKGS := ./pkg/preprocessor/... ./cmd/install-instrumentation/internal/...
@@ -176,7 +184,7 @@ test-coverage-html: test-coverage
 	@echo "Open coverage.html in your browser"
 
 test-installation-compatibility:
-	@./scripts/test-installation-compatibility.sh
+	@AUTO_FETCH_LATEST=true ./scripts/test-installation-compatibility.sh
 
 ##@ Code Quality
 

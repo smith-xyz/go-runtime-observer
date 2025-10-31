@@ -9,6 +9,7 @@ instrumented/
 # Example app artifacts (both dev and docker)
 examples/app/example-app
 examples/app/*.log
+examples/app/callgraph.txt
 # Templating go.mod for example app
 examples/app/go.mod
 

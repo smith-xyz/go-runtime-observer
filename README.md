@@ -20,6 +20,8 @@ Instruments a Go toolchain to capture runtime behavior. When you build with an i
 
 Your code stays completely untouched. The instrumentation happens during compilation in temporary directories.
 
+**Call Graph Reconstruction**: Correlation tracking bridges gaps between dynamic operations (e.g., `MethodByName` → `Call`), enabling complete call graph analysis. See `docs/correlation-algorithm.md` for details.
+
 ## Why Use This
 
 **Security Analysis**: See if your dependencies use reflection or unsafe operations you didn't know about.
@@ -35,15 +37,15 @@ Your code stays completely untouched. The instrumentation happens during compila
 make dev-docker-run
 ```
 
-Output shows calls from your code, dependencies, and the standard library:
+Output shows calls from your code, dependencies, and the standard library. Each log entry is a JSON object with `operation`, argument fields (flattened), `caller`, `file`, and `line`:
 
 ```json
-{"operation":"reflect.ValueOf","caller":"main.main","file":"/work/main.go","line":46}
-{"operation":"reflect.Value.Call","caller":"main.main","file":"/work/main.go","line":81}
-{"operation":"reflect.ValueOf","caller":"gopkg.in/yaml.v3.unmarshal","file":"/tmp/go-runtime-observer-abc123/dependency/gopkg.in/yaml.v3/yaml.go","line":163}
-{"operation":"reflect.MakeMap","caller":"gopkg.in/yaml.v3.(*decoder).mapping","file":"/tmp/go-runtime-observer-abc123/dependency/gopkg.in/yaml.v3/decode.go","line":823}
-{"operation":"reflect.Value.SetString","caller":"encoding/json.(*decodeState).literalStore","file":"/tmp/go-runtime-observer-abc123/stdlib/encoding/json/decode.go","line":950}
-{"operation":"unsafe.Add","caller":"main.main","file":"/tmp/go-runtime-observer-abc123/user/app/main.go","line":88,"ptr":"0x140001e4448","len":"-48"}
+{"operation":"reflect.ValueOf","i":"1374390599712","caller":"main.main","file":"/work/main.go","line":32}
+{"operation":"reflect.Value.MethodByName","v":"1374390599712","name":"Add","caller":"main.main","file":"/work/main.go","line":34}
+{"operation":"reflect.Value.Call","v":"1374390599712","in":"1","method_name":"Add","correlation_seq":"1","caller":"main.main","file":"/work/main.go","line":35}
+{"operation":"reflect.ValueOf","i":"549755813888","caller":"gopkg.in/yaml.v3.unmarshal","file":"/tmp/go-runtime-observer-abc123/dependency/gopkg.in/yaml.v3/yaml.go","line":163}
+{"operation":"reflect.MakeMap","typ":"map[string]interface {}","caller":"gopkg.in/yaml.v3.(*decoder).mapping","file":"/tmp/go-runtime-observer-abc123/dependency/gopkg.in/yaml.v3/decode.go","line":823}
+{"operation":"unsafe.Add","ptr":"0x140001e4448","len":"-48","caller":"main.main","file":"/tmp/go-runtime-observer-abc123/user/app/main.go","line":88}
 ```
 
 ## How It Works
@@ -54,6 +56,8 @@ Output shows calls from your code, dependencies, and the standard library:
 4. Check the log file for captured operations
 
 No changes to your code or build process required.
+
+The instrumentation uses correlation tracking to connect dynamic operations (e.g., `MethodByName("Encrypt")` → `Call()`) for complete call graph reconstruction.
 
 ## Usage
 
@@ -78,10 +82,12 @@ docker pull ghcr.io/smith-xyz/go-runtime-observer:go1.24.9-v1.0.0
 **Available tags:**
 
 **Development builds (main branch):**
+
 - `go1.24.9-edge` - Specific Go with latest development code
 - `edge` - Latest Go with latest development code
 
 **Release builds (tagged versions):**
+
 - `go1.24.9-v1.0.0` - Specific Go + framework version (recommended for production)
 - `v1.0.0` - Latest Go with specific framework version
 

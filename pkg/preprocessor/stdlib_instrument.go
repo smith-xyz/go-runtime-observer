@@ -24,7 +24,7 @@ func ProcessStdlibFile(filePath string, registry *Registry) ([]byte, bool, error
 		return nil, false, nil
 	}
 
-	return instrumentStdlibFile(filePath, astInstr.Functions, astInstr.Methods)
+	return instrumentStdlibFile(filePath, packageName, astInstr.Functions, astInstr.Methods)
 }
 
 func extractStdlibPackageName(filePath string) string {

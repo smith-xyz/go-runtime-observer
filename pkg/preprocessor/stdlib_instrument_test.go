@@ -54,15 +54,15 @@ func (v Value) Set(x Value) {
 
 	result := string(content)
 
-	if !strings.Contains(result, `instrumentlog.LogCall("reflect.ValueOf")`) {
+	if !strings.Contains(result, `instrumentlog.LogCall("reflect.ValueOf"`) {
 		t.Error("Expected ValueOf function to be instrumented")
 	}
 
-	if !strings.Contains(result, `instrumentlog.LogCall("reflect.Value.Call")`) {
+	if !strings.Contains(result, `instrumentlog.LogCall("reflect.Value.Call"`) {
 		t.Error("Expected Call method to be instrumented")
 	}
 
-	if !strings.Contains(result, `instrumentlog.LogCall("reflect.Value.Set")`) {
+	if !strings.Contains(result, `instrumentlog.LogCall("reflect.Value.Set"`) {
 		t.Error("Expected Set method to be instrumented")
 	}
 

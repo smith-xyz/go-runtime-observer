@@ -26,28 +26,63 @@ fi
 
 INSTRUMENTATION_DIR="${GO_SOURCE_DIR}/src/runtime_observe_instrumentation"
 
+copy_files_simple() {
+    local source_dir="$1"
+    local target_dir="$2"
+    
+    find "$source_dir" -name "*.go" ! -name "*_test.go" -exec sh -c '
+        rel="${1#'"$source_dir"'/}"
+        target="$2/$rel"
+        mkdir -p "$(dirname "$target")"
+        cp "$1" "$target"
+    ' _ {} "$target_dir" \;
+}
+
+copy_files_with_import_rewrite() {
+    local source_dir="$1"
+    local target_dir="$2"
+    local import_pattern="$3"
+    local import_replacement="$4"
+    
+    find "$source_dir" -name "*.go" ! -name "*_test.go" -exec sh -c '
+        rel="${1#'"$source_dir"'/}"
+        target_subdir="$2/$(dirname "$rel")"
+        mkdir -p "$target_subdir"
+        target="$2/$rel"
+        
+        sed "s|'"$import_pattern"'|'"$import_replacement"'|g" "$1" > "$target"
+    ' _ {} "$target_dir" \;
+}
+
+copy_unsafe_file() {
+    local target_file="$1"
+    
+    if [[ "$GO_VERSION" < "1.20" ]]; then
+        UNSAFE_SOURCE="pkg/instrumentation/unsafe/v1_19/unsafe.go"
+    else
+        UNSAFE_SOURCE="pkg/instrumentation/unsafe/v1_20/unsafe.go"
+    fi
+    
+    sed 's|github.com/smith-xyz/go-runtime-observer/pkg/instrumentation/instrumentlog|runtime_observe_instrumentation/instrumentlog|g' \
+        "$UNSAFE_SOURCE" > "$target_file"
+}
+
 echo "Instrumenting Go ${GO_VERSION}..."
 echo "Copying instrumentation files..."
 
-# Copy all instrumentation files
 mkdir -p "${INSTRUMENTATION_DIR}"/{instrumentlog,unsafe,preprocessor}
 
-# Copy instrumentlog
-cp pkg/instrumentation/instrumentlog/logger.go "${INSTRUMENTATION_DIR}/instrumentlog/"
+copy_files_simple \
+    "pkg/instrumentation/instrumentlog" \
+    "${INSTRUMENTATION_DIR}/instrumentlog"
 
-# Copy version specific items as needed to prevent compilation from breaking
-if [[ "$GO_VERSION" < "1.20" ]]; then
-    UNSAFE_SOURCE="pkg/instrumentation/unsafe/v1_19/unsafe.go"
-else
-    UNSAFE_SOURCE="pkg/instrumentation/unsafe/v1_20/unsafe.go"
-fi
+copy_unsafe_file "${INSTRUMENTATION_DIR}/unsafe/unsafe.go"
 
-sed 's|github.com/smith-xyz/go-runtime-observer/pkg/instrumentation/instrumentlog|runtime_observe_instrumentation/instrumentlog|g' \
-    "$UNSAFE_SOURCE" > "${INSTRUMENTATION_DIR}/unsafe/unsafe.go"
-
-# Copy preprocessor files
-sed '/fmt\.Printf.*DEBUG/d' pkg/preprocessor/config.go > "${INSTRUMENTATION_DIR}/preprocessor/config.go"
-cp pkg/preprocessor/{preprocessor.go,registry.go,tempdir.go,ast_inject.go,stdlib_instrument.go} "${INSTRUMENTATION_DIR}/preprocessor/"
+copy_files_with_import_rewrite \
+    "pkg/preprocessor" \
+    "${INSTRUMENTATION_DIR}/preprocessor" \
+    "github.com/smith-xyz/go-runtime-observer/pkg/preprocessor/" \
+    "runtime_observe_instrumentation/preprocessor/"
 
 echo "Building install-instrumentation..."
 go build -o bin/install-instrumentation ./cmd/install-instrumentation

@@ -17,20 +17,21 @@ Instruments Go toolchains to capture runtime behavior (reflection, unsafe operat
 
 ## Architecture
 
-| Component                     | Purpose                                                            | Key Files                        |
-| ----------------------------- | ------------------------------------------------------------------ | -------------------------------- |
-| `cmd/install-instrumentation` | Patches Go package loader, applies AST transformations             | `versions/vX_Y/config.go`        |
-| `pkg/preprocessor`            | Classifies files (stdlib/dependency/user), injects instrumentation | `config.go`, `ast_inject.go`     |
-| `pkg/instrumentation`         | Wrapper functions for stdlib (no stdlib imports)                   | `instrumentlog/`, `unsafe/v1_*/` |
+| Component                     | Purpose                                                                    | Key Files                        |
+| ----------------------------- | -------------------------------------------------------------------------- | -------------------------------- |
+| `cmd/install-instrumentation` | Patches Go package loader, applies AST transformations                     | `versions/vX_Y/config.go`        |
+| `pkg/preprocessor`            | Classifies files (stdlib/dependency/user), injects instrumentation         | `config.go`, `ast_inject.go`     |
+| `pkg/instrumentation`         | Wrapper functions for stdlib (minimal for reflect, full stdlib for crypto) | `instrumentlog/`, `unsafe/v1_*/` |
 
 ## Constraints
 
-| Constraint            | Details                                                                       | Why                                                                                     |
-| --------------------- | ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| **Security**          | Observation only - never create insecure toolchains                           | Maintains toolchain integrity and user trust                                            |
-| **No stdlib imports** | Cannot use `fmt`, `encoding/json`, `log`, `strconv` in `pkg/instrumentation/` | Avoids import cycles - instrumentation injected into stdlib                             |
-| **Version-specific**  | Each Go minor version has separate config (`versions/vX_Y/`)                  | Go's internal structure changes between versions                                        |
-| **AST limitations**   | Only injects log calls at function call sites in stdlib                       | AST tool is for stubbing log lines into existing code, not modifying signatures/structs |
+| Constraint             | Details                                                                                    | Why                                                                                     |
+| ---------------------- | ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
+| **Security**           | Observation only - never create insecure toolchains                                        | Maintains toolchain integrity and user trust                                            |
+| **No stdlib imports**  | Cannot use `fmt`, `encoding/json`, `log`, `strconv` in reflect instrumentation             | Avoids import cycles - `fmt` depends on `reflect`, so cannot use `fmt` in reflect       |
+| **General stdlib use** | Most stdlib packages (crypto, net, etc.) can use full stdlib (`fmt`, `encoding/hex`, etc.) | Only reflect and low-level packages (like `os` if causing cycles) need minimal logging  |
+| **Version-specific**   | Each Go minor version has separate config (`versions/vX_Y/`)                               | Go's internal structure changes between versions                                        |
+| **AST limitations**    | Only injects log calls at function call sites in stdlib                                    | AST tool is for stubbing log lines into existing code, not modifying signatures/structs |
 
 ## Key Files
 
@@ -103,13 +104,14 @@ Adding new version requires:
 
 ## Common Mistakes
 
-| Mistake                                    | Why It Fails                                                      | Solution                                                     |
-| ------------------------------------------ | ----------------------------------------------------------------- | ------------------------------------------------------------ |
-| Importing stdlib in `pkg/instrumentation/` | Creates import cycle (instrumentation injected into stdlib)       | Use only basic file I/O and string manipulation              |
-| Modifying AST beyond injecting log calls   | AST tool only stubs log lines into existing stdlib function calls | Only inject instrumentation log calls at function call sites |
-| Missing version registration               | Runtime lookup fails                                              | Always register in `versions/versions.go`                    |
-| Forgetting test command                    | Changes may break without detection                               | Always run `make docker-build && make dev-docker-run`        |
-| Non-conventional commits                   | Pre-commit hook rejects                                           | Use format: `<type>(<scope>): <subject>`                     |
+| Mistake                                     | Why It Fails                                                      | Solution                                                               |
+| ------------------------------------------- | ----------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| Importing stdlib in reflect instrumentation | Creates import cycle (`fmt` depends on `reflect`)                 | Use custom formatters in `instrumentlog/logger.go` (no stdlib)         |
+| Assuming all packages need minimal logging  | Most stdlib packages can use `fmt`, `encoding/hex`, `strconv`     | Only reflect (and low-level packages with cycles) need minimal logging |
+| Modifying AST beyond injecting log calls    | AST tool only stubs log lines into existing stdlib function calls | Only inject instrumentation log calls at function call sites           |
+| Missing version registration                | Runtime lookup fails                                              | Always register in `versions/versions.go`                              |
+| Forgetting test command                     | Changes may break without detection                               | Always run `make docker-build && make dev-docker-run`                  |
+| Non-conventional commits                    | Pre-commit hook rejects                                           | Use format: `<type>(<scope>): <subject>`                               |
 
 ## Testing Expectations
 
