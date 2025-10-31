@@ -169,19 +169,15 @@ jobs:
 
       - name: Create and push versioned manifest
         run: |
-          docker manifest rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:go${{ matrix.go-version }}-${{ steps.tag-suffix.outputs.suffix }} || true
-          docker manifest create \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:go${{ matrix.go-version }}-${{ steps.tag-suffix.outputs.suffix }} \
+          docker buildx imagetools create \
+            -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:go${{ matrix.go-version }}-${{ steps.tag-suffix.outputs.suffix }} \
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:go${{ matrix.go-version }}-${{ steps.tag-suffix.outputs.suffix }}-amd64 \
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:go${{ matrix.go-version }}-${{ steps.tag-suffix.outputs.suffix }}-arm64
-          docker manifest push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:go${{ matrix.go-version }}-${{ steps.tag-suffix.outputs.suffix }}
 
       - name: Create and push latest Go manifest
         if: matrix.go-version == '1.24.9'
         run: |
-          docker manifest rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag-suffix.outputs.suffix }} || true
-          docker manifest create \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag-suffix.outputs.suffix }} \
+          docker buildx imagetools create \
+            -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag-suffix.outputs.suffix }} \
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:go${{ matrix.go-version }}-${{ steps.tag-suffix.outputs.suffix }}-amd64 \
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:go${{ matrix.go-version }}-${{ steps.tag-suffix.outputs.suffix }}-arm64
-          docker manifest push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag-suffix.outputs.suffix }}
