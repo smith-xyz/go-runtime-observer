@@ -6,8 +6,9 @@ import (
 
 func GetConfig() config.VersionConfig {
 	return config.VersionConfig{
-		Go:    "1.24.0",
-		Notes: "Base config for Go 24.x - pkg.go with Happy: label and goFilesPackage",
+		Go:          "1.24",
+		BaseVersion: "1.24.0",
+		Notes:       "Base config for Go 1.24.x - pkg.go with Happy: label and goFilesPackage",
 		Injections: []config.InjectionConfig{
 			{
 				Name:        "dependency",
@@ -52,7 +53,7 @@ func GetConfig() config.VersionConfig {
 			},
 		},
 		Overrides: map[string]config.VersionOverride{
-			"1.24.9": {
+			"1.24.3": {
 				Injections: []config.InjectionOverride{
 					{Name: "command_line", Line: 3274},
 				},

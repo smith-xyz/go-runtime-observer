@@ -2,6 +2,7 @@ package versions
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/smith-xyz/go-runtime-observer/cmd/install-instrumentation/internal/versions/config"
@@ -55,19 +56,75 @@ func getMinorVersion(version string) (string, error) {
 	return fmt.Sprintf("%s.%s", parts[0], parts[1]), nil
 }
 
+func compareVersions(v1, v2 string) int {
+	parts1 := strings.Split(v1, ".")
+	parts2 := strings.Split(v2, ".")
+
+	for i := 0; i < 3; i++ {
+		var val1, val2 int
+		if i < len(parts1) {
+			val1, _ = strconv.Atoi(parts1[i])
+		}
+		if i < len(parts2) {
+			val2, _ = strconv.Atoi(parts2[i])
+		}
+
+		if val1 < val2 {
+			return -1
+		}
+		if val1 > val2 {
+			return 1
+		}
+	}
+	return 0
+}
+
 func applyOverrides(baseConfig config.VersionConfig, targetVersion string) config.VersionConfig {
-	override, exists := baseConfig.Overrides[targetVersion]
-	if !exists {
+	if len(baseConfig.Overrides) == 0 {
+		return baseConfig
+	}
+
+	// Ensure target version has the correct format (major.minor.patch)
+	if len(strings.Split(targetVersion, ".")) < 3 {
+		return baseConfig
+	}
+
+	var bestOverride config.VersionOverride
+	var bestVersion string
+	var found bool
+
+	for overrideVersion := range baseConfig.Overrides {
+		// Only consider overrides that are <= target version
+		if compareVersions(overrideVersion, targetVersion) > 0 {
+			continue
+		}
+
+		// Check if this is better (closer to target) than current best
+		if !found {
+			bestOverride = baseConfig.Overrides[overrideVersion]
+			bestVersion = overrideVersion
+			found = true
+			continue
+		}
+
+		// Prefer higher version (closer to target)
+		if compareVersions(overrideVersion, bestVersion) > 0 {
+			bestOverride = baseConfig.Overrides[overrideVersion]
+			bestVersion = overrideVersion
+		}
+	}
+
+	if !found {
 		return baseConfig
 	}
 
 	result := baseConfig
 
-	if len(override.Injections) > 0 {
+	if len(bestOverride.Injections) > 0 {
 		result.Injections = make([]config.InjectionConfig, len(baseConfig.Injections))
 		copy(result.Injections, baseConfig.Injections)
 
-		for _, overrideInj := range override.Injections {
+		for _, overrideInj := range bestOverride.Injections {
 			for i := range result.Injections {
 				if result.Injections[i].Name == overrideInj.Name {
 					result.Injections[i].Line = overrideInj.Line
@@ -77,8 +134,8 @@ func applyOverrides(baseConfig config.VersionConfig, targetVersion string) confi
 		}
 	}
 
-	if len(override.Patches) > 0 {
-		result.Patches = override.Patches
+	if len(bestOverride.Patches) > 0 {
+		result.Patches = bestOverride.Patches
 	}
 
 	return result

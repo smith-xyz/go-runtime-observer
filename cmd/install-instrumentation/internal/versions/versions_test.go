@@ -171,3 +171,146 @@ func TestGetMinorVersion(t *testing.T) {
 		})
 	}
 }
+
+func TestCompareVersions(t *testing.T) {
+	tests := []struct {
+		v1   string
+		v2   string
+		want int
+	}{
+		{"1.23.0", "1.23.0", 0},
+		{"1.23.1", "1.23.0", 1},
+		{"1.23.0", "1.23.1", -1},
+		{"1.22.0", "1.23.0", -1},
+		{"1.23.0", "1.22.0", 1},
+		{"1.19.13", "1.19.12", 1},
+		{"1.19.12", "1.19.13", -1},
+		{"1.24.3", "1.24.3", 0},
+		{"1.24.3", "1.24.9", -1},
+		{"1.24.9", "1.24.3", 1},
+		{"2.0.0", "1.99.99", 1},
+		{"1.99.99", "2.0.0", -1},
+		{"1.24.3", "1.25.0", -1},
+		{"1.24.3", "1.24.3", 0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.v1+"_vs_"+tt.v2, func(t *testing.T) {
+			got := compareVersions(tt.v1, tt.v2)
+			if got != tt.want {
+				t.Errorf("compareVersions(%q, %q) = %d, want %d", tt.v1, tt.v2, got, tt.want)
+			}
+
+			// Test symmetry: comparing v2 vs v1 should give opposite result
+			if tt.want != 0 {
+				wantReverse := -tt.want
+				gotReverse := compareVersions(tt.v2, tt.v1)
+				if gotReverse != wantReverse {
+					t.Errorf("compareVersions(%q, %q) = %d, want %d (reverse of %d)", tt.v2, tt.v1, gotReverse, wantReverse, tt.want)
+				}
+			}
+		})
+	}
+}
+
+func TestApplyOverrides_Cascading(t *testing.T) {
+	testConfig := config.VersionConfig{
+		Go:          "1.99",
+		BaseVersion: "1.99.0",
+		Notes:       "Test config with cascading overrides",
+		Injections: []config.InjectionConfig{
+			{
+				Name:       "test_injection",
+				TargetFile: "test.go",
+				Line:       100,
+			},
+		},
+		Overrides: map[string]config.VersionOverride{
+			"1.99.3": {
+				Injections: []config.InjectionOverride{
+					{
+						Name: "test_injection",
+						Line: 105,
+					},
+				},
+			},
+		},
+	}
+
+	tests := []struct {
+		version  string
+		wantLine int
+		desc     string
+	}{
+		{"1.99.0", 100, "base version before override"},
+		{"1.99.2", 100, "patch before override"},
+		{"1.99.3", 105, "exact override version"},
+		{"1.99.4", 105, "patch after override (cascades)"},
+		{"1.99.9", 105, "later patch (cascades)"},
+		{"1.99.99", 105, "much later patch (cascades)"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc+"_"+tt.version, func(t *testing.T) {
+			result := applyOverrides(testConfig, tt.version)
+			if len(result.Injections) != 1 {
+				t.Fatalf("Expected 1 injection, got %d", len(result.Injections))
+			}
+			if result.Injections[0].Line != tt.wantLine {
+				t.Errorf("Expected line %d for version %s, got %d", tt.wantLine, tt.version, result.Injections[0].Line)
+			}
+		})
+	}
+}
+
+func TestApplyOverrides_MultipleOverridesPicksLatest(t *testing.T) {
+	testConfig := config.VersionConfig{
+		Go:          "1.99",
+		BaseVersion: "1.99.0",
+		Injections: []config.InjectionConfig{
+			{
+				Name:       "test_injection",
+				TargetFile: "test.go",
+				Line:       100,
+			},
+		},
+		Overrides: map[string]config.VersionOverride{
+			"1.99.3": {
+				Injections: []config.InjectionOverride{
+					{Name: "test_injection", Line: 105},
+				},
+			},
+			"1.99.5": {
+				Injections: []config.InjectionOverride{
+					{Name: "test_injection", Line: 110},
+				},
+			},
+		},
+	}
+
+	tests := []struct {
+		version  string
+		wantLine int
+		desc     string
+	}{
+		{"1.99.0", 100, "before any override"},
+		{"1.99.2", 100, "before first override"},
+		{"1.99.3", 105, "exact first override"},
+		{"1.99.4", 105, "between overrides (uses first)"},
+		{"1.99.5", 110, "exact second override"},
+		{"1.99.6", 110, "after second override (uses latest)"},
+		{"1.99.9", 110, "much later (uses latest)"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc+"_"+tt.version, func(t *testing.T) {
+			result := applyOverrides(testConfig, tt.version)
+			if len(result.Injections) != 1 {
+				t.Fatalf("Expected 1 injection, got %d", len(result.Injections))
+			}
+			if result.Injections[0].Line != tt.wantLine {
+				t.Errorf("Expected line %d for version %s, got %d", tt.wantLine, tt.version, result.Injections[0].Line)
+			}
+		})
+	}
+}

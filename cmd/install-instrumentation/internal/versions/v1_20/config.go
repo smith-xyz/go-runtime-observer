@@ -53,7 +53,7 @@ func GetConfig() config.VersionConfig {
 			},
 		},
 		Overrides: map[string]config.VersionOverride{
-			"1.20.14": {
+			"1.20.5": {
 				Injections: []config.InjectionOverride{
 					{Name: "command_line", Line: 3131},
 				},
