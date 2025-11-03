@@ -7,6 +7,7 @@ import (
 	"unsafe"
 
 	"example.com/example/app/internal/security"
+	"golang.org/x/sys/unix"
 	"gopkg.in/yaml.v3"
 )
 
@@ -150,4 +151,8 @@ spec:
 	method2.Call([]reflect.Value{reflect.ValueOf(40)})
 
 	security.UnsafeMemoryOperator(5)
+
+	// Test golang.org/x/sys/unix to see if it causes issues
+	// This package uses unsafe but in ways that might not match our wrappers
+	_ = unix.Getpid()
 }

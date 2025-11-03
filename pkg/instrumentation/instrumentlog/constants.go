@@ -17,3 +17,11 @@ const (
 	defaultCorrelationMaxAge = 50000
 	defaultCleanupInterval   = 10000
 )
+
+// logger configuration
+const (
+	callerSkipDepth        = 3 // IMPORTANT: Call stack depth when runtime.Caller(3) executes: Frame 0=runtime.Caller, Frame 1=Log(), Frame 2=LogCall(), Frame 3=caller. The instrumented stdlib functions (reflect.ValueOf, etc.) call LogCall() directly, so we skip 3 frames to capture the actual application code caller, not the instrumentation wrapper.
+	instrumentationPattern = "runtime_observe_instrumentation"
+	defaultCallerName      = "unknown"
+	logBufferInitialSize   = 256
+)

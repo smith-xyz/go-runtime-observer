@@ -8,6 +8,7 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/smith-xyz/go-runtime-observer/pkg/preprocessor/ast"
 	"github.com/smith-xyz/go-runtime-observer/pkg/preprocessor/types"
@@ -77,10 +78,6 @@ func ProcessFileInPlace(filePath string, config Config) error {
 }
 
 func ProcessFileToTemp(originalPath string, config Config) (string, error) {
-	if !config.ShouldInstrument() || config.Registry == nil || !config.Registry.ShouldInstrument(originalPath) {
-		return originalPath, nil
-	}
-
 	isStdlib := config.Registry.IsStdLib(originalPath)
 
 	// Step 1: Try AST instrumentation (stdlib only)
@@ -143,18 +140,25 @@ func InstrumentPackageFiles(goFiles []string, pkgDir string) ([]string, string) 
 		return goFiles, pkgDir
 	}
 
+	if config.Registry == nil {
+		return goFiles, pkgDir
+	}
+
 	var instrumentedDir string
-	anyInstrumented := false
+	processedFiles := make(map[string]bool)
 
 	for _, file := range goFiles {
 		fullPath := filepath.Join(pkgDir, file)
+		if !config.Registry.ShouldInstrument(fullPath) {
+			continue
+		}
+
 		tempPath, err := ProcessFileToTemp(fullPath, config)
 		if err != nil {
 			continue
 		}
 
 		if tempPath != fullPath {
-			anyInstrumented = true
 			if instrumentedDir == "" {
 				moduleType := GetModuleType(fullPath, config.Registry)
 				moduleDir, err := EnsureModuleTypeDir(moduleType)
@@ -175,30 +179,55 @@ func InstrumentPackageFiles(goFiles []string, pkgDir string) ([]string, string) 
 			if err := os.WriteFile(targetPath, data, 0644); err != nil {
 				continue
 			}
+			processedFiles[file] = true
 		}
 	}
 
-	if !anyInstrumented {
+	if instrumentedDir == "" {
 		return goFiles, pkgDir
 	}
 
 	for _, file := range goFiles {
+		if processedFiles[file] {
+			continue
+		}
+		fullPath := filepath.Join(pkgDir, file)
+		if !config.Registry.ShouldInstrument(fullPath) {
+			continue
+		}
 		targetPath := filepath.Join(instrumentedDir, file)
-		if !fileExists(targetPath) {
-			fullPath := filepath.Join(pkgDir, file)
-			data, err := os.ReadFile(fullPath)
-			if err == nil {
-				_ = os.WriteFile(targetPath, data, 0644)
+		data, err := os.ReadFile(fullPath)
+		if err == nil {
+			_ = os.WriteFile(targetPath, data, 0644)
+			processedFiles[file] = true
+		}
+	}
+
+	entries, err := os.ReadDir(pkgDir)
+	if err == nil {
+		for _, entry := range entries {
+			if entry.IsDir() {
+				continue
+			}
+			name := entry.Name()
+			if !strings.HasSuffix(name, ".go") && !strings.HasSuffix(name, ".s") {
+				continue
+			}
+			if processedFiles[name] {
+				continue
+			}
+			fullPath := filepath.Join(pkgDir, name)
+			if strings.HasSuffix(name, ".s") || config.Registry.ShouldInstrument(fullPath) {
+				targetPath := filepath.Join(instrumentedDir, name)
+				data, err := os.ReadFile(fullPath)
+				if err == nil {
+					_ = os.WriteFile(targetPath, data, 0644)
+				}
 			}
 		}
 	}
 
 	return goFiles, instrumentedDir
-}
-
-func fileExists(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
 }
 
 func instrumentStdlibFile(filePath string, packageName string, functions []string, methods []types.StdlibMethodInstrumentation) ([]byte, bool, error) {

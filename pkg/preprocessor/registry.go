@@ -34,6 +34,7 @@ type Registry struct {
 	Instrumentation    map[string]types.InstrumentedPackage `json:"instrumentation"`
 	SafeStdlibPackages []string                             `json:"safe_stdlib_packages"`
 	StdlibAST          map[string]types.StdlibASTInstrumentation
+	ExcludedPackages   []string `json:"excluded_packages"`
 }
 
 var DefaultRegistry = Registry{
@@ -46,6 +47,7 @@ var DefaultRegistry = Registry{
 	SafeStdlibPackages: []string{
 		"encoding/json",
 	},
+	ExcludedPackages: []string{},
 	StdlibAST: map[string]types.StdlibASTInstrumentation{
 		"reflect": {
 			PackageName: "reflect",
@@ -178,6 +180,10 @@ func (r *Registry) ShouldInstrument(filePath string) bool {
 		return false
 	}
 
+	if r.IsExcludedPackage(filePath) {
+		return false
+	}
+
 	if r.IsUserPackage(filePath) || r.IsDependencyPackage(filePath) {
 		return true
 	}
@@ -193,6 +199,15 @@ func (r *Registry) ShouldInstrument(filePath string) bool {
 		}
 	}
 
+	return false
+}
+
+func (r *Registry) IsExcludedPackage(filePath string) bool {
+	for _, excluded := range r.ExcludedPackages {
+		if strings.Contains(filePath, excluded) {
+			return true
+		}
+	}
 	return false
 }
 

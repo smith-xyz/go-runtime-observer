@@ -152,7 +152,7 @@ setup-hooks:
 	@echo "✓ Git hooks configured successfully!"
 
 vendor-deps: dev-update-example-gomod
-	@cd examples/app && go mod vendor
+	@cd examples/app && go mod tidy && go mod vendor
 
 dev-update-example-gomod:
 	@sed "s/{{GO_VERSION}}/$(GO_MOD_VERSION)/" examples/app/go.mod.template > examples/app/go.mod

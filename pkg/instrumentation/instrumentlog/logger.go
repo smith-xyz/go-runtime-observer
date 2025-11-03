@@ -60,14 +60,21 @@ func (b *LogCallBuilder) Log() {
 		return
 	}
 
-	pc, file, line, ok := runtime.Caller(2)
+	pc, file, line, ok := runtime.Caller(callerSkipDepth)
 	if !ok {
 		return
 	}
 
-	caller := "unknown"
+	if strings.Contains(file, instrumentationPattern) {
+		return
+	}
+
+	caller := defaultCallerName
 	if fn := runtime.FuncForPC(pc); fn != nil {
 		caller = fn.Name()
+		if strings.Contains(caller, instrumentationPattern) {
+			return
+		}
 	}
 
 	key := b.operation + ":" + caller + ":" + file + ":" + itoa(line)
@@ -87,7 +94,7 @@ func (b *LogCallBuilder) Log() {
 	}
 	mu.Unlock()
 
-	buf := make([]byte, 0, 256)
+	buf := make([]byte, 0, logBufferInitialSize)
 	buf = append(buf, "{\"operation\":\""...)
 	buf = append(buf, b.operation...)
 	buf = append(buf, '"')

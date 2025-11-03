@@ -7,20 +7,51 @@ import (
 	"github.com/smith-xyz/go-runtime-observer/pkg/instrumentation/instrumentlog"
 )
 
-type IntegerType = int
-
-func Add(ptr unsafe.Pointer, len IntegerType) unsafe.Pointer {
-	instrumentlog.LogCall("unsafe.Add", instrumentlog.CallArgs{
-		"ptr": fmt.Sprintf("%p", ptr),
-		"len": fmt.Sprintf("%d", len),
-	})
-	return unsafe.Add(ptr, len)
+type IntegerType interface {
+	~int | ~int8 | ~int16 | ~int32 | ~int64 | ~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uintptr
 }
 
-func Slice(ptr *byte, len IntegerType) []byte {
+func convertToInt[T IntegerType](v T) int {
+	switch any(v).(type) {
+	case int:
+		return int(v)
+	case int8:
+		return int(v)
+	case int16:
+		return int(v)
+	case int32:
+		return int(v)
+	case int64:
+		return int(v)
+	case uint:
+		return int(v)
+	case uint8:
+		return int(v)
+	case uint16:
+		return int(v)
+	case uint32:
+		return int(v)
+	case uint64:
+		return int(v)
+	case uintptr:
+		return int(v)
+	default:
+		return 0
+	}
+}
+
+func Add[T IntegerType](ptr unsafe.Pointer, len T) unsafe.Pointer {
+	instrumentlog.LogCall("unsafe.Add", instrumentlog.CallArgs{
+		"ptr": fmt.Sprintf("%p", ptr),
+		"len": fmt.Sprintf("%v", len),
+	})
+	return unsafe.Add(ptr, convertToInt(len))
+}
+
+func Slice[T any, L IntegerType](ptr *T, len L) []T {
 	instrumentlog.LogCall("unsafe.Slice", instrumentlog.CallArgs{
 		"ptr": fmt.Sprintf("%p", ptr),
-		"len": fmt.Sprintf("%d", len),
+		"len": fmt.Sprintf("%v", len),
 	})
-	return unsafe.Slice(ptr, len)
+	return unsafe.Slice(ptr, convertToInt(len))
 }
