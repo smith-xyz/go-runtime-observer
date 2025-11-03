@@ -30,6 +30,17 @@ Your code stays completely untouched. The instrumentation happens during compila
 
 **Dependency Auditing**: Understand what third-party packages really do at runtime, not just what they import.
 
+## Comparison with Other Tools
+
+| Approach                                      | Compile-time | Runtime | Reflection-aware | Correlates `MethodByName` → `Call` |
+| --------------------------------------------- | ------------ | ------- | ---------------- | ---------------------------------- |
+| **Static analysis** (`go vet`, `staticcheck`) | ✅           | ❌      | ❌               | ❌                                 |
+| **CPU Profiler** (`pprof`)                    | ❌           | ✅      | ❌               | ❌                                 |
+| **Execution Tracer** (`go tool trace`)        | ❌           | ✅      | ❌               | ❌                                 |
+| **Debugger** (`delve`)                        | ❌           | ✅      | ⚠️               | ❌                                 |
+| **eBPF/uprobes**                              | ❌           | ✅      | ❌               | ❌                                 |
+| **Go Runtime Observer**                       | ✅           | ✅      | ✅               | ✅                                 |
+
 ## Quick Start
 
 ```bash
@@ -243,14 +254,6 @@ func Sum256(data []byte) [32]byte {
 ## Adding Go Version Support
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for instructions on adding new Go versions.
-
-## How This Differs From Other Tools
-
-**vs Traditional Instrumentation**: No code changes or agent setup required. Works with existing Go projects.
-
-**vs Runtime Profilers**: Captures specific operations you care about, not just CPU/memory usage.
-
-**vs Static Analysis**: Shows what actually runs, not just what could run based on imports.
 
 ## Project Structure
 
