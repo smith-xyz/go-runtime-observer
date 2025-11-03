@@ -1,0 +1,310 @@
+name: CI and Docker Build
+
+on:
+    push:
+        branches: [main]
+        tags:
+            - "v*.*.*"
+    pull_request:
+        branches: [main]
+
+env:
+    REGISTRY: ghcr.io
+    IMAGE_NAME: ${{ github.repository }}
+
+# Conditions
+# | Condition                    | Applies To | Effect                                |
+# |------------------------------|------------|---------------------------------------|
+# | `[skip-ci]` in commit/PR     | All jobs   | Skips CI when used in each job's `if` |
+
+jobs:
+    # CI Jobs
+    test:
+        name: Test
+        runs-on: ubuntu-latest
+        if: ${{ !contains(github.event.head_commit.message || github.event.pull_request.title || '', '[skip-ci]') }}
+        strategy:
+            matrix:
+                go-version: ["1.21.13", "1.22.12", "1.23.12"]
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Set up Go
+              uses: actions/setup-go@v5
+              with:
+                  go-version: ${{ matrix.go-version }}
+
+            - name: Run tests
+              run: make test
+
+            - name: Run tests with coverage
+              run: make test-coverage
+
+            - name: Upload coverage
+              uses: codecov/codecov-action@v4
+              with:
+                  files: ./coverage.out
+                  flags: unittests
+                  name: codecov-go-${{ matrix.go-version }}
+              continue-on-error: true
+
+    lint:
+        name: Lint
+        runs-on: ubuntu-latest
+        if: ${{ !contains(github.event.head_commit.message || github.event.pull_request.title || '', '[skip-ci]') }}
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Set up Go
+              uses: actions/setup-go@v5
+              with:
+                  go-version: "1.23.12"
+
+            - name: Install staticcheck
+              run: go install honnef.co/go/tools/cmd/staticcheck@latest
+
+            - name: Run linting
+              run: make lint
+
+            - name: Check formatting
+              run: |
+                  make fmt
+                  if [ -n "$(git status --porcelain)" ]; then
+                    echo "Code is not formatted. Run 'make fmt' locally."
+                    git diff
+                    exit 1
+                  fi
+
+    build:
+        name: Build
+        runs-on: ubuntu-latest
+        if: ${{ !contains(github.event.head_commit.message || github.event.pull_request.title || '', '[skip-ci]') }}
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Set up Go
+              uses: actions/setup-go@v5
+              with:
+                  go-version: "1.23.12"
+
+            - name: Build install-instrumentation
+              run: go build -v ./cmd/install-instrumentation
+
+            - name: Verify build artifacts
+              run: |
+                  test -f install-instrumentation
+                  ./install-instrumentation -h || true
+
+    quality-gate:
+        name: Quality Gate
+        runs-on: ubuntu-latest
+        needs: [test, lint, build]
+        if: ${{ !contains(github.event.head_commit.message || github.event.pull_request.title || '', '[skip-ci]') }}
+
+        steps:
+            - name: All checks passed
+              run: echo "All quality checks passed successfully"
+
+    # Docker Build Jobs (only on main branch pushes or tag pushes)
+    # For main branch: wait for quality gate
+    load-versions-main:
+        needs: [quality-gate]
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        runs-on: ubuntu-latest
+        outputs:
+            versions: ${{ steps.set-versions.outputs.versions }}
+            framework-version: ${{ steps.framework-version.outputs.version }}
+            tag-suffix: ${{ steps.tag-suffix.outputs.suffix }}
+            latest-go-version: ${{ steps.latest-version.outputs.version }}
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - name: Load Go versions
+              id: set-versions
+              run: |
+                  VERSIONS=$(jq -c '.versions' .github/go-versions.json)
+                  echo "versions=$VERSIONS" >> $GITHUB_OUTPUT
+
+            - name: Extract framework version
+              id: framework-version
+              run: |
+                  VERSION="dev"
+                  echo "version=$VERSION" >> $GITHUB_OUTPUT
+                  echo "Framework version: $VERSION"
+
+            - name: Determine tag suffix
+              id: tag-suffix
+              run: |
+                  echo "suffix=edge" >> $GITHUB_OUTPUT
+
+            - name: Determine latest Go version
+              id: latest-version
+              run: |
+                  LATEST=$(echo '${{ steps.set-versions.outputs.versions }}' | jq -r '.[]' | sort -V | tail -n1)
+                  echo "version=$LATEST" >> $GITHUB_OUTPUT
+                  echo "Latest Go version: $LATEST"
+
+    # For tag pushes: no dependency on quality-gate
+    load-versions-tag:
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+        runs-on: ubuntu-latest
+        outputs:
+            versions: ${{ steps.set-versions.outputs.versions }}
+            framework-version: ${{ steps.framework-version.outputs.version }}
+            tag-suffix: ${{ steps.tag-suffix.outputs.suffix }}
+            latest-go-version: ${{ steps.latest-version.outputs.version }}
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - name: Load Go versions
+              id: set-versions
+              run: |
+                  VERSIONS=$(jq -c '.versions' .github/go-versions.json)
+                  echo "versions=$VERSIONS" >> $GITHUB_OUTPUT
+
+            - name: Extract framework version
+              id: framework-version
+              run: |
+                  VERSION=${GITHUB_REF#refs/tags/}
+                  echo "version=$VERSION" >> $GITHUB_OUTPUT
+                  echo "Framework version: $VERSION"
+
+            - name: Determine tag suffix
+              id: tag-suffix
+              run: |
+                  echo "suffix=${{ steps.framework-version.outputs.version }}" >> $GITHUB_OUTPUT
+
+            - name: Determine latest Go version
+              id: latest-version
+              run: |
+                  LATEST=$(echo '${{ steps.set-versions.outputs.versions }}' | jq -r '.[]' | sort -V | tail -n1)
+                  echo "version=$LATEST" >> $GITHUB_OUTPUT
+                  echo "Latest Go version: $LATEST"
+
+    build-amd64:
+        needs: [load-versions-main, load-versions-tag]
+        if: always() && (needs.load-versions-main.result == 'success' || needs.load-versions-tag.result == 'success')
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            packages: write
+
+        strategy:
+            matrix:
+                go-version: ${{ fromJson(needs.load-versions-main.outputs.versions != '' && needs.load-versions-main.outputs.versions || needs.load-versions-tag.outputs.versions) }}
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+
+            - name: Set up Docker Buildx
+              uses: docker/setup-buildx-action@v3
+
+            - name: Log in to GitHub Container Registry
+              uses: docker/login-action@v3
+              with:
+                  registry: ${{ env.REGISTRY }}
+                  username: ${{ github.actor }}
+                  password: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Build and push AMD64
+              uses: docker/build-push-action@v5
+              with:
+                  context: .
+                  file: ./build/Dockerfile
+                  platforms: linux/amd64
+                  push: true
+                  tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:go${{ matrix.go-version }}-${{ needs.load-versions-main.outputs.tag-suffix != '' && needs.load-versions-main.outputs.tag-suffix || needs.load-versions-tag.outputs.tag-suffix }}-amd64
+                  build-args: |
+                      GO_VERSION=${{ matrix.go-version }}
+                  cache-from: type=gha,scope=amd64-${{ matrix.go-version }}
+                  cache-to: type=gha,mode=max,scope=amd64-${{ matrix.go-version }}
+
+    build-arm64:
+        needs: [load-versions-main, load-versions-tag]
+        if: always() && (needs.load-versions-main.result == 'success' || needs.load-versions-tag.result == 'success')
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            packages: write
+
+        strategy:
+            matrix:
+                go-version: ${{ fromJson(needs.load-versions-main.outputs.versions != '' && needs.load-versions-main.outputs.versions || needs.load-versions-tag.outputs.versions) }}
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+
+            - name: Set up Docker Buildx
+              uses: docker/setup-buildx-action@v3
+
+            - name: Log in to GitHub Container Registry
+              uses: docker/login-action@v3
+              with:
+                  registry: ${{ env.REGISTRY }}
+                  username: ${{ github.actor }}
+                  password: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Build and push ARM64
+              uses: docker/build-push-action@v5
+              with:
+                  context: .
+                  file: ./build/Dockerfile
+                  platforms: linux/arm64
+                  push: true
+                  tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:go${{ matrix.go-version }}-${{ needs.load-versions-main.outputs.tag-suffix != '' && needs.load-versions-main.outputs.tag-suffix || needs.load-versions-tag.outputs.tag-suffix }}-arm64
+                  build-args: |
+                      GO_VERSION=${{ matrix.go-version }}
+                  cache-from: type=gha,scope=arm64-${{ matrix.go-version }}
+                  cache-to: type=gha,mode=max,scope=arm64-${{ matrix.go-version }}
+
+    create-manifests:
+        needs: [load-versions-main, load-versions-tag, build-amd64, build-arm64]
+        if: always() && (needs.load-versions-main.result == 'success' || needs.load-versions-tag.result == 'success')
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            packages: write
+
+        strategy:
+            matrix:
+                go-version: ${{ fromJson(needs.load-versions-main.outputs.versions != '' && needs.load-versions-main.outputs.versions || needs.load-versions-tag.outputs.versions) }}
+
+        steps:
+            - name: Set up Docker Buildx
+              uses: docker/setup-buildx-action@v3
+
+            - name: Log in to GitHub Container Registry
+              uses: docker/login-action@v3
+              with:
+                  registry: ${{ env.REGISTRY }}
+                  username: ${{ github.actor }}
+                  password: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Create and push versioned manifest
+              run: |
+                  docker buildx imagetools create \
+                    -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:go${{ matrix.go-version }}-${{ needs.load-versions-main.outputs.tag-suffix != '' && needs.load-versions-main.outputs.tag-suffix || needs.load-versions-tag.outputs.tag-suffix }} \
+                    ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:go${{ matrix.go-version }}-${{ needs.load-versions-main.outputs.tag-suffix != '' && needs.load-versions-main.outputs.tag-suffix || needs.load-versions-tag.outputs.tag-suffix }}-amd64 \
+                    ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:go${{ matrix.go-version }}-${{ needs.load-versions-main.outputs.tag-suffix != '' && needs.load-versions-main.outputs.tag-suffix || needs.load-versions-tag.outputs.tag-suffix }}-arm64
+
+            - name: Create and push latest manifest
+              if: ${{ matrix.go-version == (needs.load-versions-main.outputs.latest-go-version != '' && needs.load-versions-main.outputs.latest-go-version || needs.load-versions-tag.outputs.latest-go-version) }}
+              run: |
+                  docker buildx imagetools create \
+                    -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
+                    ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:go${{ needs.load-versions-main.outputs.latest-go-version != '' && needs.load-versions-main.outputs.latest-go-version || needs.load-versions-tag.outputs.latest-go-version }}-${{ needs.load-versions-main.outputs.tag-suffix != '' && needs.load-versions-main.outputs.tag-suffix || needs.load-versions-tag.outputs.tag-suffix }}-amd64 \
+                    ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:go${{ needs.load-versions-main.outputs.latest-go-version != '' && needs.load-versions-main.outputs.latest-go-version || needs.load-versions-tag.outputs.latest-go-version }}-${{ needs.load-versions-main.outputs.tag-suffix != '' && needs.load-versions-main.outputs.tag-suffix || needs.load-versions-tag.outputs.tag-suffix }}-arm64
