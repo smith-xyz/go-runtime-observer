@@ -308,12 +308,20 @@ func FormatInt(i int) string {
 	return itoa(i)
 }
 
+func FormatInt32(i int32) string {
+	return itoa(int(i))
+}
+
 func FormatInt64(i int64) string {
 	return itoa(int(i))
 }
 
 func FormatUint64(i uint64) string {
 	return formatUint(i)
+}
+
+func FormatUint32(i uint32) string {
+	return formatUint(uint64(i))
 }
 
 func FormatUint(i uint) string {

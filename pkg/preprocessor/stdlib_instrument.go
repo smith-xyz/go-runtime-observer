@@ -42,7 +42,11 @@ func extractStdlibPackageName(filePath string) string {
 				continue
 			}
 
-			return nextPart
+			if i+2 == len(parts) {
+				return nextPart
+			}
+
+			return strings.Join(parts[i+1:len(parts)-1], "/")
 		}
 	}
 

@@ -76,24 +76,74 @@ var DefaultRegistry = Registry{
 						"SetFloat",
 						"SetBool",
 					},
-					// MethodByName and Method return reflect.Value instances that are later used in Call()
-					// We record correlations so we can connect MethodByName("GetName") -> Call() in logs
 					CorrelationRecordingMethods: []string{"MethodByName", "Method"},
-					// MethodByName takes a "name" parameter we want to record; Method takes an index from its return call
 					MethodIdentifierExtractors: map[string]string{
 						"MethodByName": "param:name",
 						"Method":       "call:0",
 					},
-					// MethodByName internally calls v.Method(index), so we check for "Method" in its return statements
-					// Method returns itself or a direct Value{}, so empty slice means check for same method name
 					ReturnExpressionMethods: map[string][]string{
 						"MethodByName": {"Method"},
 						"Method":       {},
 					},
-					// Call and CallSlice consume correlations recorded by MethodByName/Method
 					CorrelationLookupMethods: []string{"Call", "CallSlice"},
 				},
 			},
+		},
+		"crypto/md5": {
+			PackageName: "crypto/md5",
+			Functions:   []string{"New", "Sum"},
+		},
+		"crypto/sha1": {
+			PackageName: "crypto/sha1",
+			Functions:   []string{"New", "Sum"},
+		},
+		"crypto/sha256": {
+			PackageName: "crypto/sha256",
+			Functions:   []string{"New", "New224", "Sum256", "Sum224"},
+		},
+		"crypto/sha512": {
+			PackageName: "crypto/sha512",
+			Functions:   []string{"New", "New384", "New512_224", "New512_256", "Sum512", "Sum384", "Sum512_224", "Sum512_256"},
+		},
+		"crypto/aes": {
+			PackageName: "crypto/aes",
+			Functions:   []string{"NewCipher"},
+		},
+		"crypto/des": {
+			PackageName: "crypto/des",
+			Functions:   []string{"NewCipher", "NewTripleDESCipher"},
+		},
+		"crypto/rsa": {
+			PackageName: "crypto/rsa",
+			Functions:   []string{"GenerateKey", "EncryptPKCS1v15", "DecryptPKCS1v15", "SignPKCS1v15", "VerifyPKCS1v15", "EncryptOAEP", "DecryptOAEP", "SignPSS", "VerifyPSS"},
+		},
+		"crypto/ecdsa": {
+			PackageName: "crypto/ecdsa",
+			Functions:   []string{"GenerateKey", "Sign", "SignASN1", "Verify", "VerifyASN1"},
+		},
+		"crypto/ed25519": {
+			PackageName: "crypto/ed25519",
+			Functions:   []string{"GenerateKey", "Sign", "Verify"},
+		},
+		"crypto/tls": {
+			PackageName: "crypto/tls",
+			Functions:   []string{"Dial", "DialWithDialer", "Client", "Server", "Listen", "NewListener"},
+		},
+		"crypto/x509": {
+			PackageName: "crypto/x509",
+			Functions:   []string{"ParseCertificate", "ParseCertificates", "ParseCertificateRequest", "CreateCertificate", "CreateCertificateRequest", "ParsePKCS1PrivateKey", "ParsePKCS8PrivateKey", "ParseECPrivateKey"},
+		},
+		"crypto/rand": {
+			PackageName: "crypto/rand",
+			Functions:   []string{"Read", "Prime", "Int"},
+		},
+		"crypto/hmac": {
+			PackageName: "crypto/hmac",
+			Functions:   []string{"New", "Equal"},
+		},
+		"math/rand": {
+			PackageName: "math/rand",
+			Functions:   []string{"Read", "Int", "Intn", "Int31", "Int31n", "Int63", "Int63n", "Uint32", "Uint64", "Float32", "Float64"},
 		},
 	},
 }

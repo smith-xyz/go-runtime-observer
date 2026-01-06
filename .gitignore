@@ -43,3 +43,6 @@ go.work
 # Debug files
 __debug_bin
 __debug_bin.*
+
+# Dev artifacts
+.developer

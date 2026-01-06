@@ -15,7 +15,7 @@ GO_MOD_VERSION := $(shell \
 	fi)
 GO_SRC_DIR := .dev-go-source/$(GO_VERSION)
 BUILD_CMD  := $(GO_SRC_DIR)/go/bin/go build -C examples/app -a -o $(PWD)/examples/app/example-app .
-DOCKER_ENV := -e GO_INSTRUMENT_UNSAFE=false -e GO_INSTRUMENT_REFLECT=true
+DOCKER_ENV := -e GO_INSTRUMENT_UNSAFE=false -e GO_INSTRUMENT_REFLECT=true -e GO_INSTRUMENT_CRYPTO=true
 GITHUB_USERNAME ?= smith-xyz
 GHCR_IMAGE := ghcr.io/$(GITHUB_USERNAME)/go-runtime-observer
 

@@ -1,9 +1,24 @@
 package main
 
 import (
+	"crypto"
+	"crypto/aes"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/md5"
+	"crypto/rand"
+	"crypto/sha1"
+	"crypto/sha256"
+	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
+	"math/big"
+	"net"
 	"reflect"
+	"time"
 	"unsafe"
 
 	"example.com/example/app/internal/security"
@@ -155,4 +170,139 @@ spec:
 	// Test golang.org/x/sys/unix to see if it causes issues
 	// This package uses unsafe but in ways that might not match our wrappers
 	_ = unix.Getpid()
+
+	demoCrypto()
+}
+
+func demoCrypto() {
+	md5.Sum([]byte("test data for weak hash detection"))
+
+	sha1.Sum([]byte("test data for deprecated hash"))
+
+	sha256.Sum256([]byte("test data for approved hash"))
+
+	key := make([]byte, 32)
+	_, _ = rand.Read(key)
+	_, _ = aes.NewCipher(key)
+
+	crypto.SHA256.New()
+
+	fmt.Println("Crypto operations completed")
+
+	demoTLS()
+}
+
+func demoTLS() {
+	cert, certPEM, _ := generateSelfSignedCert()
+
+	serverConfig := &tls.Config{
+		Certificates: []tls.Certificate{cert},
+		MinVersion:   tls.VersionTLS12,
+		MaxVersion:   tls.VersionTLS13,
+		CipherSuites: []uint16{
+			tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+			tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+		},
+		CurvePreferences: []tls.CurveID{
+			tls.X25519,
+			tls.CurveP384,
+		},
+	}
+
+	listener, err := tls.Listen("tcp", "127.0.0.1:0", serverConfig)
+	if err != nil {
+		fmt.Printf("TLS Listen error: %v\n", err)
+		return
+	}
+	defer listener.Close()
+
+	addr := listener.Addr().String()
+	fmt.Printf("TLS server listening on %s\n", addr)
+
+	done := make(chan struct{})
+	go func() {
+		conn, err := listener.Accept()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+
+		tlsConn := conn.(*tls.Conn)
+		_ = tlsConn.Handshake()
+
+		state := tlsConn.ConnectionState()
+		fmt.Printf("Server: TLS %s, cipher 0x%04x\n",
+			tlsVersionName(state.Version),
+			state.CipherSuite)
+		close(done)
+	}()
+
+	certPool := x509.NewCertPool()
+	certPool.AppendCertsFromPEM(certPEM)
+
+	clientConfig := &tls.Config{
+		RootCAs:    certPool,
+		ServerName: "localhost",
+		MinVersion: tls.VersionTLS12,
+	}
+
+	conn, err := tls.Dial("tcp", addr, clientConfig)
+	if err != nil {
+		fmt.Printf("TLS Dial error: %v\n", err)
+		return
+	}
+	defer conn.Close()
+
+	state := conn.ConnectionState()
+	fmt.Printf("Client: TLS %s, cipher 0x%04x\n",
+		tlsVersionName(state.Version),
+		state.CipherSuite)
+
+	<-done
+	fmt.Println("TLS demo completed")
+}
+
+func generateSelfSignedCert() (tls.Certificate, []byte, []byte) {
+	priv, _ := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
+
+	serialNumber, _ := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
+
+	template := x509.Certificate{
+		SerialNumber: serialNumber,
+		Subject: pkix.Name{
+			Organization: []string{"Example Corp"},
+			CommonName:   "localhost",
+		},
+		NotBefore:             time.Now(),
+		NotAfter:              time.Now().Add(time.Hour),
+		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		BasicConstraintsValid: true,
+		IPAddresses:           []net.IP{net.ParseIP("127.0.0.1")},
+		DNSNames:              []string{"localhost"},
+	}
+
+	certDER, _ := x509.CreateCertificate(rand.Reader, &template, &template, &priv.PublicKey, priv)
+
+	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
+	keyDER, _ := x509.MarshalECPrivateKey(priv)
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
+
+	cert, _ := tls.X509KeyPair(certPEM, keyPEM)
+	return cert, certPEM, keyPEM
+}
+
+func tlsVersionName(version uint16) string {
+	switch version {
+	case tls.VersionTLS10:
+		return "TLS 1.0"
+	case tls.VersionTLS11:
+		return "TLS 1.1"
+	case tls.VersionTLS12:
+		return "TLS 1.2"
+	case tls.VersionTLS13:
+		return "TLS 1.3"
+	default:
+		return fmt.Sprintf("unknown (0x%04x)", version)
+	}
 }

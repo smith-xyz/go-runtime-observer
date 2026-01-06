@@ -145,6 +145,23 @@ func TestRegistry_ShouldInstrument(t *testing.T) {
 		// Safe stdlib - should return true
 		{"encoding/json", "/tmp/go-source/1.23.0/go/src/encoding/json/encode.go", true},
 
+		// Crypto stdlib (in StdlibAST) - should return true
+		{"crypto/md5", "/tmp/go-source/1.23.0/go/src/crypto/md5/md5.go", true},
+		{"crypto/sha1", "/tmp/go-source/1.23.0/go/src/crypto/sha1/sha1.go", true},
+		{"crypto/sha256", "/tmp/go-source/1.23.0/go/src/crypto/sha256/sha256.go", true},
+		{"crypto/sha512", "/tmp/go-source/1.23.0/go/src/crypto/sha512/sha512.go", true},
+		{"crypto/aes", "/tmp/go-source/1.23.0/go/src/crypto/aes/cipher.go", true},
+		{"crypto/des", "/tmp/go-source/1.23.0/go/src/crypto/des/cipher.go", true},
+		{"crypto/rsa", "/tmp/go-source/1.23.0/go/src/crypto/rsa/rsa.go", true},
+		{"crypto/ecdsa", "/tmp/go-source/1.23.0/go/src/crypto/ecdsa/ecdsa.go", true},
+		{"crypto/ed25519", "/tmp/go-source/1.23.0/go/src/crypto/ed25519/ed25519.go", true},
+		{"crypto/tls", "/tmp/go-source/1.23.0/go/src/crypto/tls/tls.go", true},
+		{"crypto/x509", "/tmp/go-source/1.23.0/go/src/crypto/x509/x509.go", true},
+		{"crypto/rand", "/tmp/go-source/1.23.0/go/src/crypto/rand/rand.go", true},
+		{"crypto/hmac", "/tmp/go-source/1.23.0/go/src/crypto/hmac/hmac.go", true},
+		{"math/rand", "/tmp/go-source/1.23.0/go/src/math/rand/rand.go", true},
+		{"reflect", "/tmp/go-source/1.23.0/go/src/reflect/value.go", true},
+
 		// Unsafe stdlib - should return false
 		{"runtime package", "/tmp/go-source/1.23.0/go/src/runtime/malloc.go", false},
 		{"internal package", "/tmp/go-source/1.23.0/go/src/internal/reflectlite/type.go", false},

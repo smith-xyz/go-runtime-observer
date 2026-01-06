@@ -209,6 +209,9 @@ GO_INSTRUMENT_REFLECT=true
 # Enable unsafe operations
 GO_INSTRUMENT_UNSAFE=true
 
+# Enable crypto operations (FIPS audit: hash, symmetric, asymmetric, TLS, RNG)
+GO_INSTRUMENT_CRYPTO=true
+
 # Set log path
 INSTRUMENTATION_LOG_PATH=/path/to/log
 ```

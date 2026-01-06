@@ -49,7 +49,7 @@ var typeFormatters = map[string]typeFormatter{
 		return &ast.CallExpr{
 			Fun: &ast.SelectorExpr{
 				X:   ast.NewIdent(instrumentlogPackageName),
-				Sel: ast.NewIdent("FormatInt"),
+				Sel: ast.NewIdent("FormatInt32"),
 			},
 			Args: []ast.Expr{ast.NewIdent(paramName)},
 		}
@@ -94,7 +94,7 @@ var typeFormatters = map[string]typeFormatter{
 		return &ast.CallExpr{
 			Fun: &ast.SelectorExpr{
 				X:   ast.NewIdent(instrumentlogPackageName),
-				Sel: ast.NewIdent("FormatUint"),
+				Sel: ast.NewIdent("FormatUint32"),
 			},
 			Args: []ast.Expr{ast.NewIdent(paramName)},
 		}
