@@ -3,10 +3,12 @@ package main
 import (
 	"crypto"
 	"crypto/aes"
+	"crypto/dsa"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/md5"
 	"crypto/rand"
+	"crypto/rc4"
 	"crypto/sha1"
 	"crypto/sha256"
 	"crypto/tls"
@@ -180,6 +182,16 @@ func demoCrypto() {
 	sha1.Sum([]byte("test data for deprecated hash"))
 
 	sha256.Sum256([]byte("test data for approved hash"))
+
+	_, _ = rc4.NewCipher([]byte("weak-rc4-key"))
+
+	var dsaParams dsa.Parameters
+	_ = dsa.GenerateParameters(&dsaParams, rand.Reader, dsa.L1024N160)
+	var dsaPrivKey dsa.PrivateKey
+	dsaPrivKey.Parameters = dsaParams
+	_ = dsa.GenerateKey(&dsaPrivKey, rand.Reader)
+	dsaR, dsaS, _ := dsa.Sign(rand.Reader, &dsaPrivKey, []byte("test-hash-data"))
+	_ = dsa.Verify(&dsaPrivKey.PublicKey, []byte("test-hash-data"), dsaR, dsaS)
 
 	key := make([]byte, 32)
 	_, _ = rand.Read(key)

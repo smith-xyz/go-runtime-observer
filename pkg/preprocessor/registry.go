@@ -160,6 +160,16 @@ var DefaultRegistry = Registry{
 			Logger:      types.LoggerTypeFormat,
 			Functions:   []string{"Read", "Int", "Intn", "Int31", "Int31n", "Int63", "Int63n", "Uint32", "Uint64", "Float32", "Float64"},
 		},
+		"crypto/rc4": {
+			PackageName: "crypto/rc4",
+			Logger:      types.LoggerTypeFormat,
+			Functions:   []string{"NewCipher"},
+		},
+		"crypto/dsa": {
+			PackageName: "crypto/dsa",
+			Logger:      types.LoggerTypeFormat,
+			Functions:   []string{"GenerateParameters", "GenerateKey", "Sign", "Verify"},
+		},
 	},
 }
 
