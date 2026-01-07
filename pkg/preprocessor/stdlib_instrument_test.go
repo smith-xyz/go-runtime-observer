@@ -112,16 +112,16 @@ func Sum256(data []byte) [32]byte {
 
 	result := string(content)
 
-	if !strings.Contains(result, `instrumentlog.LogCall("crypto/sha256.New"`) {
+	if !strings.Contains(result, `formatlog.LogCall("crypto/sha256.New"`) {
 		t.Error("Expected New function to be instrumented")
 	}
 
-	if !strings.Contains(result, `instrumentlog.LogCall("crypto/sha256.Sum256"`) {
+	if !strings.Contains(result, `formatlog.LogCall("crypto/sha256.Sum256"`) {
 		t.Error("Expected Sum256 function to be instrumented")
 	}
 
-	if !strings.Contains(result, `"runtime_observe_instrumentation/instrumentlog"`) {
-		t.Error("Expected instrumentlog import to be added")
+	if !strings.Contains(result, `"runtime_observe_instrumentation/formatlog"`) {
+		t.Error("Expected formatlog import to be added")
 	}
 }
 
@@ -166,12 +166,16 @@ func Sum(data []byte) [16]byte {
 
 	result := string(content)
 
-	if !strings.Contains(result, `instrumentlog.LogCall("crypto/md5.New"`) {
+	if !strings.Contains(result, `formatlog.LogCall("crypto/md5.New"`) {
 		t.Error("Expected New function to be instrumented")
 	}
 
-	if !strings.Contains(result, `instrumentlog.LogCall("crypto/md5.Sum"`) {
+	if !strings.Contains(result, `formatlog.LogCall("crypto/md5.Sum"`) {
 		t.Error("Expected Sum function to be instrumented")
+	}
+
+	if !strings.Contains(result, `"runtime_observe_instrumentation/formatlog"`) {
+		t.Error("Expected formatlog import to be added")
 	}
 }
 

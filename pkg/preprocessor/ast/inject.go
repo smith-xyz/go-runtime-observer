@@ -15,6 +15,7 @@ type fileInjector struct {
 	file        *ast.File
 	fset        *token.FileSet
 	packageName string
+	loggerType  types.LoggerType
 	modified    bool
 }
 
@@ -23,6 +24,17 @@ func NewFileInjector(file *ast.File, fset *token.FileSet, packageName string) *f
 		file:        file,
 		fset:        fset,
 		packageName: packageName,
+		loggerType:  types.LoggerTypeInstrument,
+		modified:    false,
+	}
+}
+
+func NewFileInjectorWithLogger(file *ast.File, fset *token.FileSet, packageName string, loggerType types.LoggerType) *fileInjector {
+	return &fileInjector{
+		file:        file,
+		fset:        fset,
+		packageName: packageName,
+		loggerType:  loggerType,
 		modified:    false,
 	}
 }
@@ -140,6 +152,20 @@ func (fi *fileInjector) AddImport(importPath string) bool {
 	return true
 }
 
+func (fi *fileInjector) GetLoggerImportPath() string {
+	if fi.loggerType == types.LoggerTypeFormat {
+		return "runtime_observe_instrumentation/formatlog"
+	}
+	return "runtime_observe_instrumentation/instrumentlog"
+}
+
+func (fi *fileInjector) GetLoggerPackageName() string {
+	if fi.loggerType == types.LoggerTypeFormat {
+		return "formatlog"
+	}
+	return "instrumentlog"
+}
+
 func (fi *fileInjector) Render() ([]byte, error) {
 	var buf []byte
 	outputBuf := &bytesBuffer{buf: buf}
@@ -154,7 +180,7 @@ func (fi *fileInjector) Render() ([]byte, error) {
 }
 
 func (fi *fileInjector) injectLogCall(funcDecl *ast.FuncDecl, name string, receiverType string, receiverName string, shouldLookup bool) {
-	builder := newLogCallBuilder(fi.packageName).
+	builder := newLogCallBuilder(fi.packageName, fi.loggerType).
 		setOperation(name, receiverType).
 		addOperationArg()
 
@@ -218,7 +244,7 @@ func (fi *fileInjector) injectCorrelationRecording(funcDecl *ast.FuncDecl, metho
 					identifierExpr = extractIdentifierExpr(funcDecl, callExpr, extractorSpec)
 
 					if identifierExpr != nil {
-						recordStmt := buildRecordMethodByNameCall(returnExpr, identifierExpr, ast.NewIdent(receiverName))
+						recordStmt := fi.buildRecordMethodByNameCall(returnExpr, identifierExpr, ast.NewIdent(receiverName))
 						fi.insertBeforeReturn(retStmt, recordStmt)
 						fi.modified = true
 					}
@@ -228,7 +254,7 @@ func (fi *fileInjector) injectCorrelationRecording(funcDecl *ast.FuncDecl, metho
 			if len(returnMethods) == 0 {
 				identifierExpr = extractIdentifierExpr(funcDecl, nil, extractorSpec)
 				if identifierExpr != nil {
-					recordStmt := buildRecordMethodByNameCall(returnExpr, identifierExpr, ast.NewIdent(receiverName))
+					recordStmt := fi.buildRecordMethodByNameCall(returnExpr, identifierExpr, ast.NewIdent(receiverName))
 					fi.insertBeforeReturn(retStmt, recordStmt)
 					fi.modified = true
 				}
@@ -294,11 +320,11 @@ func parseArgIndex(s string) int {
 	return result
 }
 
-func buildRecordMethodByNameCall(methodValueExpr ast.Expr, nameParamExpr ast.Expr, receiverNameExpr ast.Expr) ast.Stmt {
+func (fi *fileInjector) buildRecordMethodByNameCall(methodValueExpr ast.Expr, nameParamExpr ast.Expr, receiverNameExpr ast.Expr) ast.Stmt {
 	return &ast.ExprStmt{
 		X: &ast.CallExpr{
 			Fun: &ast.SelectorExpr{
-				X:   ast.NewIdent("instrumentlog"),
+				X:   ast.NewIdent(fi.GetLoggerPackageName()),
 				Sel: ast.NewIdent("RecordMethodByName"),
 			},
 			Args: []ast.Expr{

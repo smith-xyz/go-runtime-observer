@@ -608,7 +608,7 @@ func main() {
 }
 
 func TestLogCallBuilder_WithParams(t *testing.T) {
-	builder := newLogCallBuilder("reflect")
+	builder := newLogCallBuilder("reflect", types.LoggerTypeInstrument)
 	builder.setOperation("ValueOf", "")
 	builder.addOperationArg()
 	builder.addParam("i", "any")
@@ -627,8 +627,8 @@ func TestLogCallBuilder_WithParams(t *testing.T) {
 		t.Fatal("Expected SelectorExpr")
 	}
 
-	if selExpr.X.(*ast.Ident).Name != logCallInstrumentlogPackageName {
-		t.Errorf("Expected package name %s, got %s", logCallInstrumentlogPackageName, selExpr.X.(*ast.Ident).Name)
+	if selExpr.X.(*ast.Ident).Name != "instrumentlog" {
+		t.Errorf("Expected package name instrumentlog, got %s", selExpr.X.(*ast.Ident).Name)
 	}
 
 	if selExpr.Sel.Name != logCallFunctionName {
@@ -639,7 +639,6 @@ func TestLogCallBuilder_WithParams(t *testing.T) {
 		t.Errorf("Expected 2 args (operation + map), got %d", len(callExpr.Args))
 	}
 
-	// Verify operation arg
 	opArg, ok := callExpr.Args[0].(*ast.BasicLit)
 	if !ok {
 		t.Fatal("Expected BasicLit for operation")
@@ -648,19 +647,17 @@ func TestLogCallBuilder_WithParams(t *testing.T) {
 		t.Errorf("Expected operation to contain 'reflect.ValueOf', got %s", opArg.Value)
 	}
 
-	// Verify map arg
 	mapLit, ok := callExpr.Args[1].(*ast.CompositeLit)
 	if !ok {
 		t.Fatal("Expected CompositeLit for map")
 	}
 
-	// Verify map type is CallArgs
 	mapType, ok := mapLit.Type.(*ast.SelectorExpr)
 	if !ok {
 		t.Fatal("Expected SelectorExpr for map type")
 	}
-	if mapType.X.(*ast.Ident).Name != logCallInstrumentlogPackageName {
-		t.Errorf("Expected package name %s, got %s", logCallInstrumentlogPackageName, mapType.X.(*ast.Ident).Name)
+	if mapType.X.(*ast.Ident).Name != "instrumentlog" {
+		t.Errorf("Expected package name instrumentlog, got %s", mapType.X.(*ast.Ident).Name)
 	}
 	if mapType.Sel.Name != "CallArgs" {
 		t.Errorf("Expected CallArgs type, got %s", mapType.Sel.Name)
@@ -687,7 +684,7 @@ func TestLogCallBuilder_WithParams(t *testing.T) {
 }
 
 func TestLogCallBuilder_WithReceiver(t *testing.T) {
-	builder := newLogCallBuilder("reflect")
+	builder := newLogCallBuilder("reflect", types.LoggerTypeInstrument)
 	builder.setOperation("Call", "Value")
 	builder.addOperationArg()
 

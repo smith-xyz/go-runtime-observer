@@ -35,7 +35,7 @@ FROM golang:${BUILDER_GO_VERSION} AS builder
 COPY --from=instrumenter /go-source /go-source
 
 WORKDIR /go-source/src
-RUN unset GO_INSTRUMENT_UNSAFE GO_INSTRUMENT_REFLECT
+RUN unset GO_INSTRUMENT_UNSAFE GO_INSTRUMENT_REFLECT GO_INSTRUMENT_CRYPTO
 ENV GOROOT_BOOTSTRAP=/usr/local/go
 RUN ./make.bash
 

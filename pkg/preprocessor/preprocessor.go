@@ -230,7 +230,7 @@ func InstrumentPackageFiles(goFiles []string, pkgDir string) ([]string, string) 
 	return goFiles, instrumentedDir
 }
 
-func instrumentStdlibFile(filePath string, packageName string, functions []string, methods []types.StdlibMethodInstrumentation) ([]byte, bool, error) {
+func instrumentStdlibFile(filePath string, packageName string, instr types.StdlibASTInstrumentation) ([]byte, bool, error) {
 	content, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to read file: %w", err)
@@ -246,21 +246,21 @@ func instrumentStdlibFile(filePath string, packageName string, functions []strin
 		return nil, false, fmt.Errorf("failed to parse file: %w", err)
 	}
 
-	injector := ast.NewFileInjector(file, fset, packageName)
+	injector := ast.NewFileInjectorWithLogger(file, fset, packageName, instr.Logger)
 
-	if len(functions) > 0 {
-		injector.InjectFunctions(functions)
+	if len(instr.Functions) > 0 {
+		injector.InjectFunctions(instr.Functions)
 	}
 
-	if len(methods) > 0 {
-		injector.InjectMethods(methods)
+	if len(instr.Methods) > 0 {
+		injector.InjectMethods(instr.Methods)
 	}
 
 	if !injector.IsModified() {
 		return content, false, nil
 	}
 
-	injector.AddImport(InstrumentlogImportPath)
+	injector.AddImport(injector.GetLoggerImportPath())
 
 	result, err := injector.Render()
 	if err != nil {

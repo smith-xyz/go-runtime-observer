@@ -1,5 +1,12 @@
 package types
 
+type LoggerType string
+
+const (
+	LoggerTypeInstrument LoggerType = "instrumentlog"
+	LoggerTypeFormat     LoggerType = "formatlog"
+)
+
 // StdlibMethodInstrumentation configures how to instrument stdlib methods
 type StdlibMethodInstrumentation struct {
 	// ReceiverType specifies the type name of the method receiver (e.g., "Value" for reflect.Value methods)
@@ -37,6 +44,7 @@ type StdlibASTInstrumentation struct {
 	PackageName string
 	Functions   []string
 	Methods     []StdlibMethodInstrumentation
+	Logger      LoggerType
 }
 
 // InstrumentedPackage defines a wrapper package for instrumented stdlib functions

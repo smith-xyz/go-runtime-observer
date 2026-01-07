@@ -51,6 +51,7 @@ var DefaultRegistry = Registry{
 	StdlibAST: map[string]types.StdlibASTInstrumentation{
 		"reflect": {
 			PackageName: "reflect",
+			Logger:      types.LoggerTypeInstrument,
 			Functions: []string{
 				"ValueOf",
 				"TypeOf",
@@ -91,58 +92,72 @@ var DefaultRegistry = Registry{
 		},
 		"crypto/md5": {
 			PackageName: "crypto/md5",
+			Logger:      types.LoggerTypeFormat,
 			Functions:   []string{"New", "Sum"},
 		},
 		"crypto/sha1": {
 			PackageName: "crypto/sha1",
+			Logger:      types.LoggerTypeFormat,
 			Functions:   []string{"New", "Sum"},
 		},
 		"crypto/sha256": {
 			PackageName: "crypto/sha256",
+			Logger:      types.LoggerTypeFormat,
 			Functions:   []string{"New", "New224", "Sum256", "Sum224"},
 		},
 		"crypto/sha512": {
 			PackageName: "crypto/sha512",
+			Logger:      types.LoggerTypeFormat,
 			Functions:   []string{"New", "New384", "New512_224", "New512_256", "Sum512", "Sum384", "Sum512_224", "Sum512_256"},
 		},
 		"crypto/aes": {
 			PackageName: "crypto/aes",
+			Logger:      types.LoggerTypeFormat,
 			Functions:   []string{"NewCipher"},
 		},
 		"crypto/des": {
 			PackageName: "crypto/des",
+			Logger:      types.LoggerTypeFormat,
 			Functions:   []string{"NewCipher", "NewTripleDESCipher"},
 		},
 		"crypto/rsa": {
 			PackageName: "crypto/rsa",
+			Logger:      types.LoggerTypeFormat,
 			Functions:   []string{"GenerateKey", "EncryptPKCS1v15", "DecryptPKCS1v15", "SignPKCS1v15", "VerifyPKCS1v15", "EncryptOAEP", "DecryptOAEP", "SignPSS", "VerifyPSS"},
 		},
 		"crypto/ecdsa": {
 			PackageName: "crypto/ecdsa",
+			Logger:      types.LoggerTypeFormat,
 			Functions:   []string{"GenerateKey", "Sign", "SignASN1", "Verify", "VerifyASN1"},
 		},
 		"crypto/ed25519": {
 			PackageName: "crypto/ed25519",
+			Logger:      types.LoggerTypeFormat,
 			Functions:   []string{"GenerateKey", "Sign", "Verify"},
 		},
 		"crypto/tls": {
 			PackageName: "crypto/tls",
+			Logger:      types.LoggerTypeFormat,
 			Functions:   []string{"Dial", "DialWithDialer", "Client", "Server", "Listen", "NewListener"},
 		},
 		"crypto/x509": {
 			PackageName: "crypto/x509",
+			Logger:      types.LoggerTypeFormat,
 			Functions:   []string{"ParseCertificate", "ParseCertificates", "ParseCertificateRequest", "CreateCertificate", "CreateCertificateRequest", "ParsePKCS1PrivateKey", "ParsePKCS8PrivateKey", "ParseECPrivateKey"},
 		},
 		"crypto/rand": {
 			PackageName: "crypto/rand",
+			Logger:      types.LoggerTypeFormat,
 			Functions:   []string{"Read", "Prime", "Int"},
 		},
 		"crypto/hmac": {
 			PackageName: "crypto/hmac",
+			Logger:      types.LoggerTypeFormat,
 			Functions:   []string{"New", "Equal"},
 		},
 		"math/rand": {
 			PackageName: "math/rand",
+			Logger:      types.LoggerTypeFormat,
 			Functions:   []string{"Read", "Int", "Intn", "Int31", "Int31n", "Int63", "Int63n", "Uint32", "Uint64", "Float32", "Float64"},
 		},
 	},

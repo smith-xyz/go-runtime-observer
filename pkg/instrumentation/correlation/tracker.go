@@ -1,4 +1,4 @@
-package instrumentlog
+package correlation
 
 import (
 	"os"
@@ -9,32 +9,24 @@ import (
 	"unsafe"
 )
 
-// ReceiverBaton represents the stable receiver pointer that survives transformations
-// This is the "baton" passed between MethodByName and Call operations.
-// See: https://github.com/smith-xyz/go-runtime-observer/blob/main/docs/correlation-algorithm.md#overview
 type ReceiverBaton uintptr
 
 var (
-	tracker     *correlationTracker
+	tracker     *Tracker
 	trackerOnce sync.Once
 	debugFile   *os.File
 	debugOnce   sync.Once
 )
 
-// CorrelationEntry stores method name and sequence for temporal ordering
-// See: https://github.com/smith-xyz/go-runtime-observer/blob/main/docs/correlation-algorithm.md#algorithm-flow
-type CorrelationEntry struct {
+type Entry struct {
 	MethodName  string
 	ReceiverPtr uintptr
 	SequenceNum uint64
 	AccessTime  uint64
 }
 
-// correlationTracker implements the correlation map C[p] → [(name₁, seq₁), (name₂, seq₂), ...]
-// See: https://github.com/smith-xyz/go-runtime-observer/blob/main/docs/correlation-algorithm.md#mathematical-notation
-// Uses sync.Map for thread-safe access. See: https://github.com/smith-xyz/go-runtime-observer/blob/main/docs/correlation-algorithm.md#concurrency-safety
-type correlationTracker struct {
-	m               sync.Map // Maps ReceiverBaton (uintptr) → []*CorrelationEntry
+type Tracker struct {
+	m               sync.Map
 	size            int64
 	sequence        uint64
 	maxEntries      int64
@@ -45,13 +37,13 @@ type correlationTracker struct {
 	misses          int64
 }
 
-func initCorrelationTracker() {
+func Init() {
 	trackerOnce.Do(func() {
-		maxEntries := getEnvIntCorrelation(ENV_MAX_CORRELATIONS, defaultMaxCorrelations)
-		maxAge := getEnvUint64Correlation(ENV_CORRELATION_MAX_AGE, defaultCorrelationMaxAge)
-		cleanupInterval := getEnvUint64Correlation(ENV_CLEANUP_INTERVAL, defaultCleanupInterval)
+		maxEntries := getEnvInt(ENV_MAX_CORRELATIONS, DefaultMaxCorrelations)
+		maxAge := getEnvUint64(ENV_CORRELATION_MAX_AGE, DefaultCorrelationMaxAge)
+		cleanupInterval := getEnvUint64(ENV_CLEANUP_INTERVAL, DefaultCleanupInterval)
 
-		tracker = &correlationTracker{
+		tracker = &Tracker{
 			maxEntries:      int64(maxEntries),
 			maxAge:          maxAge,
 			cleanupInterval: cleanupInterval,
@@ -61,7 +53,7 @@ func initCorrelationTracker() {
 	})
 }
 
-func getEnvIntCorrelation(key string, defaultValue int) int {
+func getEnvInt(key string, defaultValue int) int {
 	if val := os.Getenv(key); val != "" {
 		if i, err := strconv.Atoi(val); err == nil && i > 0 {
 			return i
@@ -70,7 +62,7 @@ func getEnvIntCorrelation(key string, defaultValue int) int {
 	return defaultValue
 }
 
-func getEnvUint64Correlation(key string, defaultValue uint64) uint64 {
+func getEnvUint64(key string, defaultValue uint64) uint64 {
 	if val := os.Getenv(key); val != "" {
 		if i, err := strconv.ParseUint(val, 10, 64); err == nil && i > 0 {
 			return i
@@ -104,11 +96,7 @@ func debugWrite(msg string) {
 	_, _ = debugFile.Write(buf)
 }
 
-func debugFormatUint64(i uint64) string {
-	return formatUint64Correlation(i)
-}
-
-func formatUint64Correlation(i uint64) string {
+func FormatUint64(i uint64) string {
 	if i == 0 {
 		return "0"
 	}
@@ -122,23 +110,17 @@ func formatUint64Correlation(i uint64) string {
 	return string(buf[n:])
 }
 
-// RecordMethodByName records a correlation when MethodByName or Method is called
-// Implements Phase 1: Recording from https://github.com/smith-xyz/go-runtime-observer/blob/main/docs/correlation-algorithm.md#phase-1-recording-methodbyname-time
-// Process:
-//  1. Extract receiver pointer (baton): p = ptr(receiverValue)  // See "Key Invariant"
-//  2. Create correlation entry: (name, seq++)
-//  3. Store: C[p] = [entry] + C[p] (prepend, keep last 10)  // See "Performance" for bounded growth
 func RecordMethodByName(methodValue any, methodName string, receiverValue any) {
-	initCorrelationTracker()
+	Init()
 	initDebugFile()
 
-	methodValuePtr := extractValuePtr(methodValue)
+	methodValuePtr := ExtractValuePtr(methodValue)
 	if methodValuePtr == 0 {
 		debugWrite("RECORD: methodValuePtr=0 (extraction failed)")
 		return
 	}
 
-	baton := ReceiverBaton(extractValuePtr(receiverValue))
+	baton := ReceiverBaton(ExtractValuePtr(receiverValue))
 	if baton == 0 {
 		debugWrite("RECORD: baton=0 (extraction failed)")
 		return
@@ -155,20 +137,20 @@ func RecordMethodByName(methodValue any, methodName string, receiverValue any) {
 		tracker.evictLRU(evictCount)
 	}
 
-	entry := &CorrelationEntry{
+	entry := &Entry{
 		MethodName:  methodName,
 		ReceiverPtr: uintptr(baton),
 		SequenceNum: seq,
 		AccessTime:  seq,
 	}
 
-	val, loaded := tracker.m.LoadOrStore(uintptr(baton), []*CorrelationEntry{})
-	entries, ok := val.([]*CorrelationEntry)
+	val, loaded := tracker.m.LoadOrStore(uintptr(baton), []*Entry{})
+	entries, ok := val.([]*Entry)
 	if !ok {
-		entries = []*CorrelationEntry{}
+		entries = []*Entry{}
 	}
 
-	newEntries := make([]*CorrelationEntry, 0, len(entries)+1)
+	newEntries := make([]*Entry, 0, len(entries)+1)
 	newEntries = append(newEntries, entry)
 	newEntries = append(newEntries, entries...)
 
@@ -182,31 +164,22 @@ func RecordMethodByName(methodValue any, methodName string, receiverValue any) {
 		atomic.AddInt64(&tracker.size, 1)
 	}
 
-	debugWrite("RECORD: methodValuePtr=" + debugFormatUint64(uint64(methodValuePtr)) +
+	debugWrite("RECORD: methodValuePtr=" + FormatUint64(uint64(methodValuePtr)) +
 		" methodName=" + methodName +
-		" baton=" + debugFormatUint64(uint64(baton)) +
-		" seq=" + debugFormatUint64(seq) +
-		" entryCount=" + formatUint64Correlation(uint64(len(newEntries))))
+		" baton=" + FormatUint64(uint64(baton)) +
+		" seq=" + FormatUint64(seq) +
+		" entryCount=" + FormatUint64(uint64(len(newEntries))))
 
 	if seq%tracker.cleanupInterval == 0 {
 		go tracker.cleanupByAge()
 	}
 }
 
-// GetCorrelation looks up a correlation when Call or CallSlice is invoked
-// Implements Phase 2: Lookup from https://github.com/smith-xyz/go-runtime-observer/blob/main/docs/correlation-algorithm.md#phase-2-lookup-call-time
-// Process:
-//  1. Extract receiver pointer (baton): p = ptr(callReceiverValue)
-//  2. Lookup: C[p]
-//  3. If found: return most recent entry, consume from map
-//  4. If not found: return nil (fallback handled separately if needed)
-//
-// See: https://github.com/smith-xyz/go-runtime-observer/blob/main/docs/correlation-algorithm.md#transformation-survival-matrix
-func GetCorrelation(callReceiverValue any) (*CorrelationEntry, bool) {
-	initCorrelationTracker()
+func GetCorrelation(callReceiverValue any) (*Entry, bool) {
+	Init()
 	initDebugFile()
 
-	baton := ReceiverBaton(extractValuePtr(callReceiverValue))
+	baton := ReceiverBaton(ExtractValuePtr(callReceiverValue))
 	if baton == 0 {
 		debugWrite("GET: baton=0 (extraction failed)")
 		atomic.AddInt64(&tracker.misses, 1)
@@ -215,10 +188,10 @@ func GetCorrelation(callReceiverValue any) (*CorrelationEntry, bool) {
 
 	val, ok := tracker.m.Load(uintptr(baton))
 	if ok {
-		entries, ok := val.([]*CorrelationEntry)
+		entries, ok := val.([]*Entry)
 		if !ok || len(entries) == 0 {
 			atomic.AddInt64(&tracker.misses, 1)
-			debugWrite("GET: baton=" + debugFormatUint64(uint64(baton)) + " MISS (invalid type or empty)")
+			debugWrite("GET: baton=" + FormatUint64(uint64(baton)) + " MISS (invalid type or empty)")
 			return nil, false
 		}
 
@@ -232,21 +205,19 @@ func GetCorrelation(callReceiverValue any) (*CorrelationEntry, bool) {
 		}
 
 		atomic.AddInt64(&tracker.matches, 1)
-		debugWrite("GET: baton=" + debugFormatUint64(uint64(baton)) +
+		debugWrite("GET: baton=" + FormatUint64(uint64(baton)) +
 			" MATCH methodName=" + entry.MethodName +
-			" seq=" + debugFormatUint64(entry.SequenceNum))
+			" seq=" + FormatUint64(entry.SequenceNum))
 		return entry, true
 	}
 
 	atomic.AddInt64(&tracker.misses, 1)
-	debugWrite("GET: baton=" + debugFormatUint64(uint64(baton)) + " MISS")
+	debugWrite("GET: baton=" + FormatUint64(uint64(baton)) + " MISS")
 	return nil, false
 }
 
-// GetCorrelationFromPtr is a convenience function for lookup using a uintptr directly
-// Used when the receiver pointer is already extracted as a string and parsed
-func GetCorrelationFromPtr(callReceiverPtr uintptr) (*CorrelationEntry, bool) {
-	initCorrelationTracker()
+func GetCorrelationFromPtr(callReceiverPtr uintptr) (*Entry, bool) {
+	Init()
 	initDebugFile()
 
 	baton := ReceiverBaton(callReceiverPtr)
@@ -258,10 +229,10 @@ func GetCorrelationFromPtr(callReceiverPtr uintptr) (*CorrelationEntry, bool) {
 
 	val, ok := tracker.m.Load(uintptr(baton))
 	if ok {
-		entries, ok := val.([]*CorrelationEntry)
+		entries, ok := val.([]*Entry)
 		if !ok || len(entries) == 0 {
 			atomic.AddInt64(&tracker.misses, 1)
-			debugWrite("GET: baton=" + debugFormatUint64(uint64(baton)) + " MISS (invalid type or empty)")
+			debugWrite("GET: baton=" + FormatUint64(uint64(baton)) + " MISS (invalid type or empty)")
 			return nil, false
 		}
 
@@ -275,21 +246,18 @@ func GetCorrelationFromPtr(callReceiverPtr uintptr) (*CorrelationEntry, bool) {
 		}
 
 		atomic.AddInt64(&tracker.matches, 1)
-		debugWrite("GET: baton=" + debugFormatUint64(uint64(baton)) +
+		debugWrite("GET: baton=" + FormatUint64(uint64(baton)) +
 			" MATCH methodName=" + entry.MethodName +
-			" seq=" + debugFormatUint64(entry.SequenceNum))
+			" seq=" + FormatUint64(entry.SequenceNum))
 		return entry, true
 	}
 
 	atomic.AddInt64(&tracker.misses, 1)
-	debugWrite("GET: baton=" + debugFormatUint64(uint64(baton)) + " MISS")
+	debugWrite("GET: baton=" + FormatUint64(uint64(baton)) + " MISS")
 	return nil, false
 }
 
-// extractValuePtr extracts the internal ptr field from reflect.Value
-// This implements the ptr() function from https://github.com/smith-xyz/go-runtime-observer/blob/main/docs/correlation-algorithm.md#mathematical-notation
-// The receiver pointer (baton) survives transformations per the "Key Invariant"
-func extractValuePtr(v any) uintptr {
+func ExtractValuePtr(v any) uintptr {
 	if v == nil {
 		return 0
 	}
@@ -317,9 +285,7 @@ func extractValuePtr(v any) uintptr {
 	return uintptr(valueStruct.ptr)
 }
 
-// evictLRU removes the least recently used entries when the map reaches capacity
-// See: https://github.com/smith-xyz/go-runtime-observer/blob/main/docs/correlation-algorithm.md#performance
-func (ct *correlationTracker) evictLRU(count int) {
+func (ct *Tracker) evictLRU(count int) {
 	type entryWithTime struct {
 		ptr  uintptr
 		time uint64
@@ -328,7 +294,7 @@ func (ct *correlationTracker) evictLRU(count int) {
 	entries := make([]entryWithTime, 0, count*2)
 
 	ct.m.Range(func(key, value interface{}) bool {
-		entrySlice, ok := value.([]*CorrelationEntry)
+		entrySlice, ok := value.([]*Entry)
 		if !ok || len(entrySlice) == 0 {
 			return true
 		}
@@ -364,9 +330,7 @@ func (ct *correlationTracker) evictLRU(count int) {
 	atomic.AddInt64(&ct.evictions, int64(evicted))
 }
 
-// cleanupByAge removes entries older than maxAge based on sequence number
-// See: https://github.com/smith-xyz/go-runtime-observer/blob/main/docs/correlation-algorithm.md#performance
-func (ct *correlationTracker) cleanupByAge() {
+func (ct *Tracker) cleanupByAge() {
 	currentSeq := atomic.LoadUint64(&ct.sequence)
 	if currentSeq < ct.maxAge {
 		return
@@ -376,7 +340,7 @@ func (ct *correlationTracker) cleanupByAge() {
 	deleted := 0
 	keysToDelete := make([]uintptr, 0, 100)
 	ct.m.Range(func(key, value interface{}) bool {
-		entrySlice, ok := value.([]*CorrelationEntry)
+		entrySlice, ok := value.([]*Entry)
 		if !ok || len(entrySlice) == 0 {
 			return true
 		}
@@ -402,7 +366,7 @@ func (ct *correlationTracker) cleanupByAge() {
 	}
 }
 
-func (ct *correlationTracker) periodicCleanup() {
+func (ct *Tracker) periodicCleanup() {
 	for {
 		runtime.Gosched()
 
@@ -417,8 +381,8 @@ func (ct *correlationTracker) periodicCleanup() {
 	}
 }
 
-func GetCorrelationMetrics() map[string]int64 {
-	initCorrelationTracker()
+func GetMetrics() map[string]int64 {
+	Init()
 
 	return map[string]int64{
 		"size":      atomic.LoadInt64(&tracker.size),

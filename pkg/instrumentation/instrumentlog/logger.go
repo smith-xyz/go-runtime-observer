@@ -8,6 +8,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"unsafe"
+
+	"github.com/smith-xyz/go-runtime-observer/pkg/instrumentation/correlation"
 )
 
 var (
@@ -20,11 +22,9 @@ var (
 func init() {
 	path := os.Getenv(LOG_ENV_VAR)
 	if path != "" {
-		// Use 0600 (owner-only) for better security
-		// Logs contain memory addresses and file paths - restrict access
 		logFile, _ = os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
 	}
-	initCorrelationTracker()
+	correlation.Init()
 }
 
 func getEnvIntSeen(key string, defaultValue int) int {
@@ -55,8 +55,25 @@ func (b *LogCallBuilder) Add(name string, value string) *LogCallBuilder {
 	return b
 }
 
+func isInstrumentationInCallStack() bool {
+	for i := callerSkipDepth; i < callerSkipDepth+8; i++ {
+		_, file, _, ok := runtime.Caller(i)
+		if !ok {
+			break
+		}
+		if strings.Contains(file, instrumentationPattern) {
+			return true
+		}
+	}
+	return false
+}
+
 func (b *LogCallBuilder) Log() {
 	if logFile == nil {
+		return
+	}
+
+	if isInstrumentationInCallStack() {
 		return
 	}
 
@@ -142,10 +159,10 @@ func LogCall(operation string, args CallArgs) {
 
 			if receiverPtr != 0 {
 				debugLogCorrelationLookup(operation, receiverPtr, receiverValue)
-				correlation, found := GetCorrelationFromPtr(receiverPtr)
+				entry, found := correlation.GetCorrelationFromPtr(receiverPtr)
 				if found {
-					builder.Add("method_name", correlation.MethodName)
-					builder.Add("correlation_seq", FormatUint64(correlation.SequenceNum))
+					builder.Add("method_name", entry.MethodName)
+					builder.Add("correlation_seq", FormatUint64(entry.SequenceNum))
 				}
 			} else {
 				debugLogCorrelationCheck(operation, "receiverPtr=0 after parse", 0)
@@ -492,4 +509,22 @@ func formatFloat(f float64) string {
 	}
 
 	return string(buf[n:])
+}
+
+type CorrelationEntry = correlation.Entry
+
+func RecordMethodByName(methodValue any, methodName string, receiverValue any) {
+	correlation.RecordMethodByName(methodValue, methodName, receiverValue)
+}
+
+func GetCorrelation(callReceiverValue any) (*CorrelationEntry, bool) {
+	return correlation.GetCorrelation(callReceiverValue)
+}
+
+func GetCorrelationFromPtr(callReceiverPtr uintptr) (*CorrelationEntry, bool) {
+	return correlation.GetCorrelationFromPtr(callReceiverPtr)
+}
+
+func GetCorrelationMetrics() map[string]int64 {
+	return correlation.GetMetrics()
 }

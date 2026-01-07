@@ -4,23 +4,30 @@ import (
 	"fmt"
 	"go/ast"
 	"go/token"
+
+	"github.com/smith-xyz/go-runtime-observer/pkg/preprocessor/types"
 )
 
 const (
-	logCallInstrumentlogPackageName = "instrumentlog"
-	logCallFunctionName             = "LogCall"
+	logCallFunctionName = "LogCall"
 )
 
 type logCallBuilder struct {
-	packageName string
-	operation   string
-	args        map[string]ast.Expr
+	packageName   string
+	loggerPackage string
+	operation     string
+	args          map[string]ast.Expr
 }
 
-func newLogCallBuilder(packageName string) *logCallBuilder {
+func newLogCallBuilder(packageName string, loggerType types.LoggerType) *logCallBuilder {
+	loggerPackage := "instrumentlog"
+	if loggerType == types.LoggerTypeFormat {
+		loggerPackage = "formatlog"
+	}
 	return &logCallBuilder{
-		packageName: packageName,
-		args:        make(map[string]ast.Expr),
+		packageName:   packageName,
+		loggerPackage: loggerPackage,
+		args:          make(map[string]ast.Expr),
 	}
 }
 
@@ -38,7 +45,7 @@ func (b *logCallBuilder) addOperationArg() *logCallBuilder {
 }
 
 func (b *logCallBuilder) addParam(paramName string, paramType string) *logCallBuilder {
-	b.args[paramName] = buildFormatArg(paramName, paramType)
+	b.args[paramName] = buildFormatArgWithLogger(paramName, paramType, b.loggerPackage)
 	return b
 }
 
@@ -71,7 +78,7 @@ func (b *logCallBuilder) build() ast.Stmt {
 
 	mapLit := &ast.CompositeLit{
 		Type: &ast.SelectorExpr{
-			X:   ast.NewIdent(logCallInstrumentlogPackageName),
+			X:   ast.NewIdent(b.loggerPackage),
 			Sel: ast.NewIdent("CallArgs"),
 		},
 		Elts: mapElements,
@@ -80,7 +87,7 @@ func (b *logCallBuilder) build() ast.Stmt {
 	return &ast.ExprStmt{
 		X: &ast.CallExpr{
 			Fun: &ast.SelectorExpr{
-				X:   ast.NewIdent(logCallInstrumentlogPackageName),
+				X:   ast.NewIdent(b.loggerPackage),
 				Sel: ast.NewIdent(logCallFunctionName),
 			},
 			Args: []ast.Expr{

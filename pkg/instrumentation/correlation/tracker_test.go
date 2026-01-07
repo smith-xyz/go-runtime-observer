@@ -1,4 +1,4 @@
-package instrumentlog
+package correlation
 
 import (
 	"os"
@@ -17,7 +17,7 @@ func TestRecordMethodByName_WithBaton(t *testing.T) {
 
 	RecordMethodByName(methodValue, "GetName", receiverValue)
 
-	baton := ReceiverBaton(extractValuePtr(receiverValue))
+	baton := ReceiverBaton(ExtractValuePtr(receiverValue))
 	entry, found := GetCorrelation(receiverValue)
 
 	if !found {
@@ -85,12 +85,12 @@ func TestRecordMethodByName_PrependKeepsLast10(t *testing.T) {
 		RecordMethodByName(methodValue, "Method"+FormatUint64(uint64(i)), receiverValue)
 	}
 
-	val, ok := tracker.m.Load(extractValuePtr(receiverValue))
+	val, ok := tracker.m.Load(ExtractValuePtr(receiverValue))
 	if !ok {
 		t.Fatal("Expected entries to exist")
 	}
 
-	entries := val.([]*CorrelationEntry)
+	entries := val.([]*Entry)
 	if len(entries) != 10 {
 		t.Errorf("Expected 10 entries (bounded), got %d", len(entries))
 	}
@@ -133,7 +133,7 @@ func TestGetCorrelation_Consumption(t *testing.T) {
 		t.Error("Expected nil entry after consumption")
 	}
 
-	metrics := GetCorrelationMetrics()
+	metrics := GetMetrics()
 	if metrics["matches"] != 1 {
 		t.Errorf("Expected 1 match, got %d", metrics["matches"])
 	}
@@ -151,7 +151,7 @@ func TestGetCorrelationFromPtr(t *testing.T) {
 
 	RecordMethodByName(methodValue, "GetName", receiverValue)
 
-	baton := extractValuePtr(receiverValue)
+	baton := ExtractValuePtr(receiverValue)
 	entry, found := GetCorrelationFromPtr(baton)
 
 	if !found {
@@ -181,7 +181,7 @@ func TestGetCorrelation_ZeroBaton(t *testing.T) {
 		t.Error("Expected nil entry for zero value")
 	}
 
-	metrics := GetCorrelationMetrics()
+	metrics := GetMetrics()
 	if metrics["misses"] != 1 {
 		t.Errorf("Expected 1 miss, got %d", metrics["misses"])
 	}
@@ -195,12 +195,12 @@ func TestRecordMethodByName_ZeroBaton(t *testing.T) {
 
 	RecordMethodByName(methodValue, "GetName", zeroReceiver)
 
-	baton := extractValuePtr(zeroReceiver)
+	baton := ExtractValuePtr(zeroReceiver)
 	if baton != 0 {
 		t.Error("Expected zero baton for zero receiver")
 	}
 
-	metrics := GetCorrelationMetrics()
+	metrics := GetMetrics()
 	if metrics["size"] != 0 {
 		t.Errorf("Expected size 0, got %d", metrics["size"])
 	}
@@ -221,7 +221,7 @@ func TestEvictLRU_WithSliceValues(t *testing.T) {
 		RecordMethodByName(methodValue, "Method", receiverValues[i])
 	}
 
-	metrics := GetCorrelationMetrics()
+	metrics := GetMetrics()
 	if metrics["evictions"] == 0 {
 		t.Error("Expected evictions to occur when exceeding maxEntries")
 	}
@@ -246,7 +246,7 @@ func TestCleanupByAge(t *testing.T) {
 
 	tracker.cleanupByAge()
 
-	metrics := GetCorrelationMetrics()
+	metrics := GetMetrics()
 	if metrics["size"] != 0 {
 		t.Errorf("Expected size 0 after cleanup, got %d", metrics["size"])
 	}
@@ -272,17 +272,17 @@ func TestConcurrentAccess(t *testing.T) {
 
 	wg.Wait()
 
-	val, ok := tracker.m.Load(extractValuePtr(receiverValue))
+	val, ok := tracker.m.Load(ExtractValuePtr(receiverValue))
 	if !ok {
 		t.Fatal("Expected entries to exist after concurrent recording")
 	}
 
-	entries := val.([]*CorrelationEntry)
+	entries := val.([]*Entry)
 	if len(entries) != numGoroutines {
 		t.Errorf("Expected %d entries, got %d", numGoroutines, len(entries))
 	}
 
-	metrics := GetCorrelationMetrics()
+	metrics := GetMetrics()
 	if metrics["size"] != 1 {
 		t.Errorf("Expected size 1 (one receiver), got %d", metrics["size"])
 	}
@@ -318,7 +318,7 @@ func TestMultipleReceivers(t *testing.T) {
 		t.Errorf("Expected 'GetName2', got %s", entry2.MethodName)
 	}
 
-	metrics := GetCorrelationMetrics()
+	metrics := GetMetrics()
 	if metrics["size"] != 0 {
 		t.Errorf("Expected size 0 after consuming both, got %d", metrics["size"])
 	}
@@ -358,7 +358,6 @@ func resetTracker() {
 	os.Unsetenv(ENV_DEBUG_CORRELATION)
 }
 
-// known limitation around wrapping, documented in algo doc
 func TestValueOfWrapping(t *testing.T) {
 	resetTracker()
 
@@ -375,7 +374,7 @@ func TestValueOfWrapping(t *testing.T) {
 		t.Error("Expected ValueOf wrapping to break direct correlation (uses fallback)")
 	}
 
-	receiverPtr := extractValuePtr(receiverValue)
+	receiverPtr := ExtractValuePtr(receiverValue)
 	if receiverPtr != 0 {
 		entry, found := GetCorrelationFromPtr(receiverPtr)
 		if !found {

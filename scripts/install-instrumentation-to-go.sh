@@ -70,11 +70,21 @@ copy_unsafe_file() {
 echo "Instrumenting Go ${GO_VERSION}..."
 echo "Copying instrumentation files..."
 
-mkdir -p "${INSTRUMENTATION_DIR}"/{instrumentlog,unsafe,preprocessor}
+mkdir -p "${INSTRUMENTATION_DIR}"/{instrumentlog,formatlog,correlation,unsafe,preprocessor}
 
 copy_files_simple \
+    "pkg/instrumentation/correlation" \
+    "${INSTRUMENTATION_DIR}/correlation"
+
+copy_files_with_import_rewrite \
     "pkg/instrumentation/instrumentlog" \
-    "${INSTRUMENTATION_DIR}/instrumentlog"
+    "${INSTRUMENTATION_DIR}/instrumentlog" \
+    "github.com/smith-xyz/go-runtime-observer/pkg/instrumentation/" \
+    "runtime_observe_instrumentation/"
+
+copy_files_simple \
+    "pkg/instrumentation/formatlog" \
+    "${INSTRUMENTATION_DIR}/formatlog"
 
 copy_unsafe_file "${INSTRUMENTATION_DIR}/unsafe/unsafe.go"
 

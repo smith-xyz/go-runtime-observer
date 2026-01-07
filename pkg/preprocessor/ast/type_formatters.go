@@ -4,159 +4,46 @@ import (
 	"go/ast"
 )
 
-const instrumentlogPackageName = "instrumentlog"
+func buildFormatCall(loggerPkg, funcName, paramName string) ast.Expr {
+	return &ast.CallExpr{
+		Fun: &ast.SelectorExpr{
+			X:   ast.NewIdent(loggerPkg),
+			Sel: ast.NewIdent(funcName),
+		},
+		Args: []ast.Expr{ast.NewIdent(paramName)},
+	}
+}
 
-type typeFormatter func(paramName string) ast.Expr
+func buildFormatArgWithLogger(paramName, paramType, loggerPkg string) ast.Expr {
+	if len(paramType) > 6 && paramType[:6] == "slice:" {
+		paramType = "slice"
+	}
 
-var typeFormatters = map[string]typeFormatter{
-	"bytes": func(paramName string) ast.Expr {
+	switch paramType {
+	case "bytes":
+		return buildFormatCall(loggerPkg, "FormatBytes", paramName)
+	case "int", "int8", "int16":
+		return buildFormatCall(loggerPkg, "FormatInt", paramName)
+	case "int32":
+		return buildFormatCall(loggerPkg, "FormatInt32", paramName)
+	case "int64":
+		return buildFormatCall(loggerPkg, "FormatInt64", paramName)
+	case "uint", "uint8", "uint16":
+		return buildFormatCall(loggerPkg, "FormatUint", paramName)
+	case "uint32":
+		return buildFormatCall(loggerPkg, "FormatUint32", paramName)
+	case "uint64", "uintptr":
+		return buildFormatCall(loggerPkg, "FormatUint64", paramName)
+	case "float32", "float64":
+		return buildFormatCall(loggerPkg, "FormatFloat64", paramName)
+	case "bool":
+		return buildFormatCall(loggerPkg, "FormatBool", paramName)
+	case "string":
+		return buildFormatCall(loggerPkg, "FormatString", paramName)
+	case "slice":
 		return &ast.CallExpr{
 			Fun: &ast.SelectorExpr{
-				X:   ast.NewIdent(instrumentlogPackageName),
-				Sel: ast.NewIdent("FormatBytes"),
-			},
-			Args: []ast.Expr{ast.NewIdent(paramName)},
-		}
-	},
-	"int": func(paramName string) ast.Expr {
-		return &ast.CallExpr{
-			Fun: &ast.SelectorExpr{
-				X:   ast.NewIdent(instrumentlogPackageName),
-				Sel: ast.NewIdent("FormatInt"),
-			},
-			Args: []ast.Expr{ast.NewIdent(paramName)},
-		}
-	},
-	"int8": func(paramName string) ast.Expr {
-		return &ast.CallExpr{
-			Fun: &ast.SelectorExpr{
-				X:   ast.NewIdent(instrumentlogPackageName),
-				Sel: ast.NewIdent("FormatInt"),
-			},
-			Args: []ast.Expr{ast.NewIdent(paramName)},
-		}
-	},
-	"int16": func(paramName string) ast.Expr {
-		return &ast.CallExpr{
-			Fun: &ast.SelectorExpr{
-				X:   ast.NewIdent(instrumentlogPackageName),
-				Sel: ast.NewIdent("FormatInt"),
-			},
-			Args: []ast.Expr{ast.NewIdent(paramName)},
-		}
-	},
-	"int32": func(paramName string) ast.Expr {
-		return &ast.CallExpr{
-			Fun: &ast.SelectorExpr{
-				X:   ast.NewIdent(instrumentlogPackageName),
-				Sel: ast.NewIdent("FormatInt32"),
-			},
-			Args: []ast.Expr{ast.NewIdent(paramName)},
-		}
-	},
-	"int64": func(paramName string) ast.Expr {
-		return &ast.CallExpr{
-			Fun: &ast.SelectorExpr{
-				X:   ast.NewIdent(instrumentlogPackageName),
-				Sel: ast.NewIdent("FormatInt64"),
-			},
-			Args: []ast.Expr{ast.NewIdent(paramName)},
-		}
-	},
-	"uint": func(paramName string) ast.Expr {
-		return &ast.CallExpr{
-			Fun: &ast.SelectorExpr{
-				X:   ast.NewIdent(instrumentlogPackageName),
-				Sel: ast.NewIdent("FormatUint"),
-			},
-			Args: []ast.Expr{ast.NewIdent(paramName)},
-		}
-	},
-	"uint8": func(paramName string) ast.Expr {
-		return &ast.CallExpr{
-			Fun: &ast.SelectorExpr{
-				X:   ast.NewIdent(instrumentlogPackageName),
-				Sel: ast.NewIdent("FormatUint"),
-			},
-			Args: []ast.Expr{ast.NewIdent(paramName)},
-		}
-	},
-	"uint16": func(paramName string) ast.Expr {
-		return &ast.CallExpr{
-			Fun: &ast.SelectorExpr{
-				X:   ast.NewIdent(instrumentlogPackageName),
-				Sel: ast.NewIdent("FormatUint"),
-			},
-			Args: []ast.Expr{ast.NewIdent(paramName)},
-		}
-	},
-	"uint32": func(paramName string) ast.Expr {
-		return &ast.CallExpr{
-			Fun: &ast.SelectorExpr{
-				X:   ast.NewIdent(instrumentlogPackageName),
-				Sel: ast.NewIdent("FormatUint32"),
-			},
-			Args: []ast.Expr{ast.NewIdent(paramName)},
-		}
-	},
-	"uint64": func(paramName string) ast.Expr {
-		return &ast.CallExpr{
-			Fun: &ast.SelectorExpr{
-				X:   ast.NewIdent(instrumentlogPackageName),
-				Sel: ast.NewIdent("FormatUint64"),
-			},
-			Args: []ast.Expr{ast.NewIdent(paramName)},
-		}
-	},
-	"uintptr": func(paramName string) ast.Expr {
-		return &ast.CallExpr{
-			Fun: &ast.SelectorExpr{
-				X:   ast.NewIdent(instrumentlogPackageName),
-				Sel: ast.NewIdent("FormatUint64"),
-			},
-			Args: []ast.Expr{ast.NewIdent(paramName)},
-		}
-	},
-	"float32": func(paramName string) ast.Expr {
-		return &ast.CallExpr{
-			Fun: &ast.SelectorExpr{
-				X:   ast.NewIdent(instrumentlogPackageName),
-				Sel: ast.NewIdent("FormatFloat64"),
-			},
-			Args: []ast.Expr{ast.NewIdent(paramName)},
-		}
-	},
-	"float64": func(paramName string) ast.Expr {
-		return &ast.CallExpr{
-			Fun: &ast.SelectorExpr{
-				X:   ast.NewIdent(instrumentlogPackageName),
-				Sel: ast.NewIdent("FormatFloat64"),
-			},
-			Args: []ast.Expr{ast.NewIdent(paramName)},
-		}
-	},
-	"bool": func(paramName string) ast.Expr {
-		return &ast.CallExpr{
-			Fun: &ast.SelectorExpr{
-				X:   ast.NewIdent(instrumentlogPackageName),
-				Sel: ast.NewIdent("FormatBool"),
-			},
-			Args: []ast.Expr{ast.NewIdent(paramName)},
-		}
-	},
-	"string": func(paramName string) ast.Expr {
-		return &ast.CallExpr{
-			Fun: &ast.SelectorExpr{
-				X:   ast.NewIdent(instrumentlogPackageName),
-				Sel: ast.NewIdent("FormatString"),
-			},
-			Args: []ast.Expr{ast.NewIdent(paramName)},
-		}
-	},
-	"slice": func(paramName string) ast.Expr {
-		return &ast.CallExpr{
-			Fun: &ast.SelectorExpr{
-				X:   ast.NewIdent(instrumentlogPackageName),
+				X:   ast.NewIdent(loggerPkg),
 				Sel: ast.NewIdent("FormatInt"),
 			},
 			Args: []ast.Expr{
@@ -166,55 +53,15 @@ var typeFormatters = map[string]typeFormatter{
 				},
 			},
 		}
-	},
-	"any": func(paramName string) ast.Expr {
-		return &ast.CallExpr{
-			Fun: &ast.SelectorExpr{
-				X:   ast.NewIdent(instrumentlogPackageName),
-				Sel: ast.NewIdent("FormatAny"),
-			},
-			Args: []ast.Expr{ast.NewIdent(paramName)},
-		}
-	},
-	"interface": func(paramName string) ast.Expr {
-		return &ast.CallExpr{
-			Fun: &ast.SelectorExpr{
-				X:   ast.NewIdent(instrumentlogPackageName),
-				Sel: ast.NewIdent("FormatAny"),
-			},
-			Args: []ast.Expr{ast.NewIdent(paramName)},
-		}
-	},
+	case "any", "interface":
+		return buildFormatCall(loggerPkg, "FormatAny", paramName)
+	case "Value":
+		return buildFormatCall(loggerPkg, "FormatValue", paramName)
+	default:
+		return buildFormatCall(loggerPkg, "FormatAny", paramName)
+	}
 }
 
 func buildFormatArg(paramName, paramType string) ast.Expr {
-	if len(paramType) > 6 && paramType[:6] == "slice:" {
-		paramType = "slice"
-	}
-
-	if formatter, ok := typeFormatters[paramType]; ok {
-		return formatter(paramName)
-	}
-
-	// For reflect.Value type, use FormatValue to extract internal ptr
-	// This allows matching return values with Call receivers
-	if paramType == "Value" {
-		return &ast.CallExpr{
-			Fun: &ast.SelectorExpr{
-				X:   ast.NewIdent(instrumentlogPackageName),
-				Sel: ast.NewIdent("FormatValue"),
-			},
-			Args: []ast.Expr{ast.NewIdent(paramName)},
-		}
-	}
-
-	// For unknown types (like reflect.Type), use FormatAny
-	// which will use FormatPointer to get unique instance addresses
-	return &ast.CallExpr{
-		Fun: &ast.SelectorExpr{
-			X:   ast.NewIdent(instrumentlogPackageName),
-			Sel: ast.NewIdent("FormatAny"),
-		},
-		Args: []ast.Expr{ast.NewIdent(paramName)},
-	}
+	return buildFormatArgWithLogger(paramName, paramType, "instrumentlog")
 }
