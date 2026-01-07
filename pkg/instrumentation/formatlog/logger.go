@@ -1,7 +1,6 @@
 package formatlog
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"reflect"
@@ -96,24 +95,29 @@ func (b *LogCallBuilder) Log() {
 	}
 	mu.Unlock()
 
-	entry := map[string]interface{}{
-		"operation": b.operation,
-		"caller":    caller,
-		"file":      file,
-		"line":      line,
-	}
+	buf := make([]byte, 0, 512)
+	buf = append(buf, `{"operation":"`...)
+	buf = append(buf, b.operation...)
+	buf = append(buf, '"')
+
 	for name, value := range b.args {
-		entry[name] = value
+		buf = append(buf, `,"`...)
+		buf = appendEscaped(buf, name)
+		buf = append(buf, `":"`...)
+		buf = appendEscaped(buf, value)
+		buf = append(buf, '"')
 	}
 
-	data, err := json.Marshal(entry)
-	if err != nil {
-		return
-	}
-	data = append(data, '\n')
+	buf = append(buf, `,"caller":"`...)
+	buf = append(buf, caller...)
+	buf = append(buf, `","file":"`...)
+	buf = append(buf, file...)
+	buf = append(buf, `","line":`...)
+	buf = append(buf, fmt.Sprintf("%d", line)...)
+	buf = append(buf, "}\n"...)
 
 	mu.Lock()
-	_, _ = logFile.Write(data)
+	_, _ = logFile.Write(buf)
 	mu.Unlock()
 }
 
@@ -234,4 +238,36 @@ func safeCallMethod(method reflect.Value) string {
 
 func FormatValue(v any) string {
 	return FormatAny(v)
+}
+
+func appendEscaped(buf []byte, s string) []byte {
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		switch c {
+		case '"':
+			buf = append(buf, '\\', '"')
+		case '\\':
+			buf = append(buf, '\\', '\\')
+		case '\n':
+			buf = append(buf, '\\', 'n')
+		case '\r':
+			buf = append(buf, '\\', 'r')
+		case '\t':
+			buf = append(buf, '\\', 't')
+		default:
+			if c < 0x20 {
+				buf = append(buf, '\\', 'u', '0', '0', hexDigit(c>>4), hexDigit(c&0xf))
+			} else {
+				buf = append(buf, c)
+			}
+		}
+	}
+	return buf
+}
+
+func hexDigit(b byte) byte {
+	if b < 10 {
+		return '0' + b
+	}
+	return 'a' + b - 10
 }
