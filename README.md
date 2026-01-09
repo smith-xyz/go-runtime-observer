@@ -200,20 +200,77 @@ make dev-local-test
 
 ## Configuration
 
-Enable instrumentation for specific packages:
+### Build-Time Configuration
+
+Set these environment variables when building your application with the instrumented Go toolchain:
+
+| Variable                | Default | Description                                                                           |
+| ----------------------- | ------- | ------------------------------------------------------------------------------------- |
+| `GO_INSTRUMENT_REFLECT` | `false` | Enable reflection operation logging (`reflect.ValueOf`, `MethodByName`, `Call`, etc.) |
+| `GO_INSTRUMENT_UNSAFE`  | `false` | Enable unsafe operation logging (`unsafe.Add`, `unsafe.Slice`, `unsafe.String`)       |
+| `GO_INSTRUMENT_CRYPTO`  | `false` | Enable crypto operation logging (hashes, ciphers, TLS, x509, RNG) for FIPS auditing   |
 
 ```bash
-# Enable reflect operations
-GO_INSTRUMENT_REFLECT=true
+# Build with all instrumentation enabled
+GO_INSTRUMENT_REFLECT=true GO_INSTRUMENT_UNSAFE=true GO_INSTRUMENT_CRYPTO=true \
+  go build -o myapp .
+```
 
-# Enable unsafe operations
-GO_INSTRUMENT_UNSAFE=true
+### Runtime Configuration
 
-# Enable crypto operations (FIPS audit: hash, symmetric, asymmetric, TLS, RNG)
-GO_INSTRUMENT_CRYPTO=true
+Set these environment variables when running your instrumented binary:
 
-# Set log path
-INSTRUMENTATION_LOG_PATH=/path/to/log
+| Variable                           | Default  | Description                                                                              |
+| ---------------------------------- | -------- | ---------------------------------------------------------------------------------------- |
+| `INSTRUMENTATION_LOG_PATH`         | (none)   | Path to write log output. If not set, instrumentation is disabled.                       |
+| `INSTRUMENTATION_MAX_SEEN_ENTRIES` | `500000` | Maximum unique log entries before deduplication stops. Prevents unbounded memory growth. |
+
+```bash
+# Run with logging enabled
+INSTRUMENTATION_LOG_PATH=./runtime.log ./myapp
+```
+
+### Correlation Tracking Configuration
+
+These control the `MethodByName` → `Call` correlation feature that links reflection lookups to actual invocations:
+
+| Variable                              | Default | Description                                                           |
+| ------------------------------------- | ------- | --------------------------------------------------------------------- |
+| `INSTRUMENTATION_MAX_CORRELATIONS`    | `10000` | Maximum correlation entries to track simultaneously.                  |
+| `INSTRUMENTATION_CORRELATION_MAX_AGE` | `60`    | Seconds before a correlation entry expires (if `Call` never happens). |
+| `INSTRUMENTATION_CLEANUP_INTERVAL`    | `30`    | Seconds between correlation cleanup cycles.                           |
+
+### Debug Configuration
+
+For troubleshooting the instrumentation itself:
+
+| Variable                            | Default | Description                                               |
+| ----------------------------------- | ------- | --------------------------------------------------------- |
+| `INSTRUMENTATION_DEBUG_CORRELATION` | `false` | Enable verbose logging of correlation tracking internals. |
+| `INSTRUMENTATION_DEBUG_LOG_PATH`    | (none)  | Separate log path for debug output.                       |
+
+### Deduplication
+
+The instrumentation automatically deduplicates log entries to prevent log flooding. For example, if `reflect.TypeOf` is called 1000 times with the same parameters from the same call site, it appears once in the log.
+
+- Entries are keyed by operation + caller + file + line + parameters
+- Once `INSTRUMENTATION_MAX_SEEN_ENTRIES` unique entries are logged, deduplication stops to prevent unbounded memory usage
+- Reset by restarting the application
+
+### Example: Full Configuration
+
+```bash
+# Build with crypto instrumentation
+GO_INSTRUMENT_CRYPTO=true go build -o myapp .
+
+# Run with logging and custom correlation settings
+INSTRUMENTATION_LOG_PATH=./crypto-audit.log \
+INSTRUMENTATION_MAX_SEEN_ENTRIES=100000 \
+INSTRUMENTATION_MAX_CORRELATIONS=5000 \
+./myapp
+
+# View crypto bill of materials
+cat crypto-audit.log | jq 'select(.operation | startswith("crypto"))'
 ```
 
 ## Supported Go Versions

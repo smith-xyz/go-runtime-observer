@@ -6,7 +6,7 @@
 	vendor-deps setup-hooks test test-verbose test-coverage test-coverage-html \
 	lint fmt ci
 
-GO_VERSION ?= 1.23.0
+GO_VERSION ?= 1.24.0
 GO_MOD_VERSION := $(shell \
 	if echo "$(GO_VERSION)" | grep -qE '^1\.(19|20)'; then \
 		echo "$(GO_VERSION)" | grep -oE '^[0-9]+\.[0-9]+'; \
@@ -16,6 +16,7 @@ GO_MOD_VERSION := $(shell \
 GO_SRC_DIR := .dev-go-source/$(GO_VERSION)
 BUILD_CMD  := $(GO_SRC_DIR)/go/bin/go build -C examples/app -a -o $(PWD)/examples/app/example-app .
 DOCKER_ENV := -e GO_INSTRUMENT_UNSAFE=false -e GO_INSTRUMENT_REFLECT=true -e GO_INSTRUMENT_CRYPTO=true
+MAX_SEEN_ENTRIES ?= 500000
 GITHUB_USERNAME ?= smith-xyz
 GHCR_IMAGE := ghcr.io/$(GITHUB_USERNAME)/go-runtime-observer
 
@@ -39,6 +40,7 @@ help:
 	@echo "Docker Workflow:"
 	@echo "  make docker-build                    Build instrumented Go container image"
 	@echo "  make dev-docker-run                  Build and run example with Docker"
+	@echo "  make dev-docker-run MAX_SEEN_ENTRIES=10  Run with limited deduplication (demo)"
 	@echo "  make dev-docker-shell                Interactive shell with Docker"
 	@echo "  make docker-login-ghcr               Login to GitHub Container Registry"
 	@echo "  make docker-tag-ghcr                 Tag local image for GHCR"
@@ -130,10 +132,11 @@ dev-docker-run: docker-build dev-update-example-gomod vendor-deps
 		-v $(PWD)/examples/app:/work \
 		$(DOCKER_ENV) \
 		-e INSTRUMENTATION_LOG_PATH=/work/docker-instrumentation.log \
+		-e INSTRUMENTATION_MAX_SEEN_ENTRIES=$(MAX_SEEN_ENTRIES) \
 		--entrypoint /work/example-app \
 		instrumented-go:$(GO_VERSION)
 	@echo ""
-	@echo "Instrumentation log:"
+	@echo "Instrumentation log (MAX_SEEN_ENTRIES=$(MAX_SEEN_ENTRIES)):"
 	@cat examples/app/docker-instrumentation.log
 
 dev-docker-shell: docker-build
