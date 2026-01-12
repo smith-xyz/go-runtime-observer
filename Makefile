@@ -1,7 +1,7 @@
 .PHONY: all help clean clean-all \
 	dev-setup dev-local-instrument dev-local-build dev-local-test \
 	dev-clean-install-instrumented-go dev-update-example-gomod example-callgraph \
-	docker-build dev-docker-run dev-docker-shell docker-clean \
+	docker-build dev-docker-run dev-docker-test dev-docker-shell docker-clean \
 	docker-login-ghcr docker-tag-ghcr docker-push-ghcr \
 	vendor-deps setup-hooks test test-verbose test-coverage test-coverage-html \
 	lint fmt ci
@@ -40,6 +40,7 @@ help:
 	@echo "Docker Workflow:"
 	@echo "  make docker-build                    Build instrumented Go container image"
 	@echo "  make dev-docker-run                  Build and run example with Docker"
+	@echo "  make dev-docker-test                 Run go test with instrumented toolchain"
 	@echo "  make dev-docker-run MAX_SEEN_ENTRIES=10  Run with limited deduplication (demo)"
 	@echo "  make dev-docker-shell                Interactive shell with Docker"
 	@echo "  make docker-login-ghcr               Login to GitHub Container Registry"
@@ -138,6 +139,20 @@ dev-docker-run: docker-build dev-update-example-gomod vendor-deps
 	@echo ""
 	@echo "Instrumentation log (MAX_SEEN_ENTRIES=$(MAX_SEEN_ENTRIES)):"
 	@cat examples/app/docker-instrumentation.log
+
+dev-docker-test: docker-build dev-update-example-gomod vendor-deps
+	@rm -f examples/app/test-instrumentation.log
+	@echo "Running go test with instrumented toolchain..."
+	@docker run --rm \
+		-v $(PWD)/examples/app:/work \
+		$(DOCKER_ENV) \
+		-e INSTRUMENTATION_LOG_PATH=/work/test-instrumentation.log \
+		-e INSTRUMENTATION_MAX_SEEN_ENTRIES=$(MAX_SEEN_ENTRIES) \
+		instrumented-go:$(GO_VERSION) \
+		test -v ./...
+	@echo ""
+	@echo "Test instrumentation log:"
+	@cat examples/app/test-instrumentation.log
 
 dev-docker-shell: docker-build
 	@echo "Inside the container, your current directory is mounted at /work"
