@@ -38,8 +38,10 @@ Your code stays completely untouched. The instrumentation happens during compila
 | **CPU Profiler** (`pprof`)                    | ❌           | ✅      | ❌               | ❌                                 |
 | **Execution Tracer** (`go tool trace`)        | ❌           | ✅      | ❌               | ❌                                 |
 | **Debugger** (`delve`)                        | ❌           | ✅      | ⚠️               | ❌                                 |
-| **eBPF/uprobes**                              | ❌           | ✅      | ❌               | ❌                                 |
+| **eBPF/uprobes**                              | ❌           | ✅      | ⚠️               | ❌                                 |
 | **Go Runtime Observer**                       | ✅           | ✅      | ✅               | ✅                                 |
+
+**Note on eBPF/uprobes:** eBPF can hook Go function entry points via uprobes, but extracting semantic parameters is difficult. Go's register-based calling convention (since Go 1.17), interface value layouts (two-word structures requiring pointer chasing), and version-specific memory layouts make it challenging to extract meaningful data like reflection method names, key lengths, or cipher modes. Tools like bpftrace and Tetragon excel at syscall-level tracing ("process X connected to IP Y") but struggle with application-level semantics ("reflect.MethodByName called with 'HandlePayment'"). This tool instruments at compile time where full type information is available, making parameter extraction trivial.
 
 ## Quick Start
 
