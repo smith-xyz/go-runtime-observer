@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-GO_MINOR_VERSIONS=("1.19" "1.20" "1.21" "1.22" "1.23" "1.24")
+GO_MINOR_VERSIONS=("1.19" "1.20" "1.21" "1.22" "1.23" "1.24" "1.25")
 TEST_SPECIFIC_VERSION="${TEST_SPECIFIC_VERSION:-${1:-}}"
 VERBOSE="${VERBOSE:-false}"
 AUTO_FETCH_LATEST="${AUTO_FETCH_LATEST:-false}" # requires jq and curl
@@ -115,7 +115,7 @@ main() {
             fi
         done
     else
-        SUPPORTED_VERSIONS=("1.19" "1.20" "1.21.0" "1.22.0" "1.23.0" "1.24.0")
+        SUPPORTED_VERSIONS=("1.19" "1.20" "1.21.0" "1.22.0" "1.23.0" "1.24.0" "1.25.0")
     fi
     
     local VERSIONS_TO_TEST=()

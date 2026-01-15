@@ -6,7 +6,7 @@
 	vendor-deps setup-hooks test test-verbose test-coverage test-coverage-html \
 	lint fmt ci
 
-GO_VERSION ?= 1.24.0
+GO_VERSION ?= 1.25.5
 GO_MOD_VERSION := $(shell \
 	if echo "$(GO_VERSION)" | grep -qE '^1\.(19|20)'; then \
 		echo "$(GO_VERSION)" | grep -oE '^[0-9]+\.[0-9]+'; \
@@ -91,7 +91,7 @@ dev-local-instrument:
 dev-local-build:
 	@echo "Building instrumented Go $(GO_VERSION)..."
 	@cd $(GO_SRC_DIR)/go/src && \
-		unset GO_INSTRUMENT_UNSAFE GO_INSTRUMENT_REFLECT && \
+		unset GO_INSTRUMENT_UNSAFE GO_INSTRUMENT_REFLECT GO_INSTRUMENT_CRYPTO && \
 		GOROOT_BOOTSTRAP=$$(go env GOROOT) && \
 		./make.bash
 
@@ -102,6 +102,7 @@ dev-local-test: clean vendor-deps
 		GOTOOLCHAIN=local \
 		GO_INSTRUMENT_UNSAFE=true \
 		GO_INSTRUMENT_REFLECT=true \
+		GO_INSTRUMENT_CRYPTO=true \
 		$(BUILD_CMD)
 	@INSTRUMENTATION_DEBUG_CORRELATION=true \
 		INSTRUMENTATION_DEBUG_LOG_PATH=$(PWD)/examples/app/correlation-debug.log \

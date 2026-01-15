@@ -45,17 +45,17 @@ func TestGetVersionConfig_PatchVersions(t *testing.T) {
 }
 
 func TestGetVersionConfig_UnsupportedMinor(t *testing.T) {
-	_, err := GetVersionConfig("1.25.0")
+	_, err := GetVersionConfig("1.0.0")
 	if err == nil {
-		t.Fatal("Expected error for unsupported version 1.25.0")
+		t.Fatal("Expected error for unsupported version 1.0.0")
 	}
 
 	vErr, ok := err.(*VersionNotFoundError)
 	if !ok {
 		t.Fatalf("Expected VersionNotFoundError, got %T", err)
 	}
-	if vErr.Version != "1.25.0" {
-		t.Errorf("Expected version 1.25.0 in error, got %s", vErr.Version)
+	if vErr.Version != "1.0.0" {
+		t.Errorf("Expected version 1.0.0 in error, got %s", vErr.Version)
 	}
 }
 

@@ -279,7 +279,8 @@ cat crypto-audit.log | jq 'select(.operation | startswith("crypto"))'
 
 | Go Version | Status      | Latest Tested | Docker Image | Notes                  |
 | ---------- | ----------- | ------------- | ------------ | ---------------------- |
-| 1.24.x     | Supported   | 1.24.9        | Yes          | Latest stable          |
+| 1.25.x     | Supported   | 1.25.5        | Yes          | Latest stable          |
+| 1.24.x     | Supported   | 1.24.9        | Yes          |                        |
 | 1.23.x     | Supported   | 1.23.12       | Yes          |                        |
 | 1.22.x     | Supported   | 1.22.12       | Yes          |                        |
 | 1.21.x     | Supported   | 1.21.13       | Yes          |                        |
